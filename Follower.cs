@@ -7,31 +7,39 @@ using System.Net;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading;
+using System.Threading.Tasks;
+using System.Drawing;
 using ExileCore;
+using ExileCore.PoEMemory;
 using ExileCore.PoEMemory.Components;
 using ExileCore.PoEMemory.Elements;
 using ExileCore.PoEMemory.MemoryObjects;
 using ExileCore.Shared;
 using ExileCore.Shared.Enums;
-
 namespace Follower
 {
     public class Follower : BaseSettingsPlugin<FollowerSettings>
     {
         public static Follower Instance { get; private set; }
-        private readonly Random _random = new Random();
+        private readonly Random random = new Random();
         private Camera Camera => GameController.Game.IngameState.Camera;
 
         // --- State Variables ---
         private Vector3 _lastTargetPosition;
+        private Vector3 _lastPlayerPosition;
         private Entity _followTarget;
         private List<TaskNode> _tasks = new List<TaskNode>();
         private bool _hasUsedWp;
+
+        private int _numRows, _numCols;
+        private byte[,] _tiles;
 
         // --- Coroutine and Command System ---
         private Coroutine _botCoroutine;
         private Thread _clientThread;
         private volatile string _receivedCommand = null;
+
+
 
         public override bool Initialise()
         {
@@ -56,20 +64,6 @@ namespace Follower
         {
             _clientThread?.Interrupt();
             _botCoroutine?.Done();
-        }
-
-        private void ResetState()
-        {
-            _tasks = new List<TaskNode>();
-            _followTarget = null;
-            _lastTargetPosition = Vector3.Zero;
-            _hasUsedWp = false;
-        }
-
-        public override void AreaChange(AreaInstance area)
-        {
-            ResetState();
-            // We can add terrain generation here if needed for dashing, but we'll omit it for now to keep the code clean.
         }
 
         public override Job Tick()
@@ -118,7 +112,7 @@ namespace Follower
                 var leaderPartyElement = GetLeaderPartyElement();
 
                 // Case 1: Leader is in another zone
-                if (_followTarget == null && leaderPartyElement != null && leaderPartyElement.ZoneName != GameController.Game.IngameState.Data.CurrentArea.DisplayName)
+                if (_followTarget == null && leaderPartyElement != null && leaderPartyElement.ZoneName != GameController.Game.IngameState.Data.CurrentArea.Name)
                 {
                     if (_tasks.Any()) continue; // If we already have a task (e.g., transition), let it finish
 
@@ -210,7 +204,7 @@ namespace Follower
                             // Move towards the task
                             yield return Mouse.SetCursorPosHuman(WorldToValidScreenPosition(currentTask.WorldPosition));
                             Input.KeyDown(Settings.MovementKey);
-                            yield return new WaitTime(50 + _random.Next(50));
+                            yield return new WaitTime(50 + random.Next(50));
                             Input.KeyUp(Settings.MovementKey);
                             break;
 
@@ -227,7 +221,7 @@ namespace Follower
                                 {
                                     yield return Mouse.SetCursorPosHuman(WorldToValidScreenPosition(currentTask.WorldPosition));
                                     Input.KeyDown(Settings.MovementKey);
-                                    yield return new WaitTime(50 + _random.Next(50));
+                                    yield return new WaitTime(50 + random.Next(50));
                                     Input.KeyUp(Settings.MovementKey);
                                 }
                                 else
@@ -266,36 +260,7 @@ namespace Follower
             }
         }
 
-        private void StartClient()
-        {
-            while (true)
-            {
-                try
-                {
-                    using (var client = new TcpClient())
-                    {
-                        client.Connect(IPAddress.Loopback, 6969);
-                        using (var stream = client.GetStream())
-                        {
-                            byte[] buffer = new byte[1024];
-                            int bytesRead;
-                            while ((bytesRead = stream.Read(buffer, 0, buffer.Length)) != 0)
-                            {
-                                _receivedCommand = Encoding.ASCII.GetString(buffer, 0, bytesRead);
-                            }
-                        }
-                    }
-                }
-                catch { /* Ignore */ }
-                Thread.Sleep(5000);
-            }
-        }
-
         // --- (Paste all your other helper methods and Render here) ---
-        internal Vector2 GetMousePosition() { /* ... */ }
-        private PartyElementWindow GetLeaderPartyElement() { /* ... */ }
-        // etc...
-        #endregion
 
         public bool IsInLabyrinth()
         {
@@ -649,7 +614,7 @@ namespace Follower
         /// Clears all pathfinding values. Used on area transitions primarily.
         /// MERGED: Combined logic from both files.
         /// </summary>
-        private void ResetPathing()
+        private void ResetState()
         {
             _tasks = new List<TaskNode>();
             _followTarget = null;
@@ -660,7 +625,7 @@ namespace Follower
 
         public override void AreaChange(AreaInstance area)
         {
-            ResetPathing();
+            ResetState();
 
             // MERGED: This terrain generation logic is present in both files and is crucial for the dash check.
             // I've kept the implementation from Follower as it's clean and functional.
@@ -734,5 +699,7 @@ namespace Follower
                 Thread.Sleep(30 + random.Next(Settings.BotInputFrequency));
             }
         }
+
+        #endregion
     }
 }

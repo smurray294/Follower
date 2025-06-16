@@ -5,45 +5,34 @@ namespace Follower
 {
     public class TaskNode
     {
-        /// <summary>
-        /// The position of the task in world space.
-        /// </summary>
+
         public Vector3 WorldPosition { get; set; }
-        /// <summary>
-        /// The position of the task in UI space.
-        /// </summary>
-        public Vector2 UiPosition { get; set; }
-        /// <summary>
-        /// Type of task we are performing. Different tasks have different underlying logic
-        /// </summary>
+        public LabelOnGround LabelOnGround { get; set; } // Important for transitions
+        public float Bounds { get; set; }
         public TaskNodeType Type { get; set; }
-        /// <summary>
-        /// Bounds represents how close we must get to the node to complete it. 
-        /// Some tasks require multiple actions within Bounds to be marked as complete.
-        /// </summary>
-        public int Bounds { get; set; }
-
-        /// <summary>
-        /// Counts the number of times the Task has been executed. Used for canceling invalid actions
-        /// </summary>
         public int AttemptCount { get; set; }
-        public LabelOnGround LabelOnGround { get; set; }
 
-
-
-        public TaskNode(Vector3 position, int bounds, TaskNodeType type = TaskNodeType.Movement)
+        // Constructor for world position tasks (movement, looting, waypoints)
+        public TaskNode(Vector3 position, float bounds, TaskNodeType type = TaskNodeType.Movement)
         {
             WorldPosition = position;
-            Type = type;
             Bounds = bounds;
+            Type = type;
+            AttemptCount = 0;
+            LabelOnGround = null;
         }
-        public TaskNode(LabelOnGround labelOnGround, int bounds, TaskNodeType type = TaskNodeType.Movement)
+
+        // Constructor for label-based tasks (transitions)
+        public TaskNode(LabelOnGround label, float bounds, TaskNodeType type)
         {
-            LabelOnGround = labelOnGround;
-            Type = type;
+            LabelOnGround = label;
+            WorldPosition = label.ItemOnGround.Pos; // Store world position as a fallback
             Bounds = bounds;
+            Type = type;
+            AttemptCount = 0;
         }
     }
+
     public enum TaskNodeType
     {
         Movement,

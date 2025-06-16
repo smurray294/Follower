@@ -8,3 +8,4 @@ C:\Users\smurr\OneDrive\Desktop\limited\ExileApi-Compiled-3.26.0.0.1\ExileApi-Co
 C:\Users\smurr\OneDrive\Desktop\limited\ExileApi-Compiled-3.26.0.0.1\ExileApi-Compiled-3.26.0.0.1\Plugins\Source\Follower-main\obj\Debug\net8.0-windows\win-x64\Follower.dll
 C:\Users\smurr\OneDrive\Desktop\limited\ExileApi-Compiled-3.26.0.0.1\ExileApi-Compiled-3.26.0.0.1\Plugins\Source\Follower-main\obj\Debug\net8.0-windows\win-x64\refint\Follower.dll
 C:\Users\smurr\OneDrive\Desktop\limited\ExileApi-Compiled-3.26.0.0.1\ExileApi-Compiled-3.26.0.0.1\Plugins\Source\Follower-main\obj\Debug\net8.0-windows\win-x64\ref\Follower.dll
+C:\Users\smurr\OneDrive\Desktop\limited\ExileApi-Compiled-3.26.0.0.1\ExileApi-Compiled-3.26.0.0.1\Plugins\Source\Follower-main\obj\Debug\net8.0-windows\win-x64\Follower.sourcelink.json
