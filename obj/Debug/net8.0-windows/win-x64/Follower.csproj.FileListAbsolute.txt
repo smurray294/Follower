@@ -1,0 +1,10 @@
+C:\Users\smurr\OneDrive\Desktop\limited\ExileApi-Compiled-3.26.0.0.1\ExileApi-Compiled-3.26.0.0.1\Plugins\Temp\Follower-main\Follower.deps.json
+C:\Users\smurr\OneDrive\Desktop\limited\ExileApi-Compiled-3.26.0.0.1\ExileApi-Compiled-3.26.0.0.1\Plugins\Temp\Follower-main\Follower.dll
+C:\Users\smurr\OneDrive\Desktop\limited\ExileApi-Compiled-3.26.0.0.1\ExileApi-Compiled-3.26.0.0.1\Plugins\Source\Follower-main\obj\Debug\net8.0-windows\win-x64\Follower.csproj.AssemblyReference.cache
+C:\Users\smurr\OneDrive\Desktop\limited\ExileApi-Compiled-3.26.0.0.1\ExileApi-Compiled-3.26.0.0.1\Plugins\Source\Follower-main\obj\Debug\net8.0-windows\win-x64\Follower.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\smurr\OneDrive\Desktop\limited\ExileApi-Compiled-3.26.0.0.1\ExileApi-Compiled-3.26.0.0.1\Plugins\Source\Follower-main\obj\Debug\net8.0-windows\win-x64\Follower.AssemblyInfoInputs.cache
+C:\Users\smurr\OneDrive\Desktop\limited\ExileApi-Compiled-3.26.0.0.1\ExileApi-Compiled-3.26.0.0.1\Plugins\Source\Follower-main\obj\Debug\net8.0-windows\win-x64\Follower.AssemblyInfo.cs
+C:\Users\smurr\OneDrive\Desktop\limited\ExileApi-Compiled-3.26.0.0.1\ExileApi-Compiled-3.26.0.0.1\Plugins\Source\Follower-main\obj\Debug\net8.0-windows\win-x64\Follower.csproj.CoreCompileInputs.cache
+C:\Users\smurr\OneDrive\Desktop\limited\ExileApi-Compiled-3.26.0.0.1\ExileApi-Compiled-3.26.0.0.1\Plugins\Source\Follower-main\obj\Debug\net8.0-windows\win-x64\Follower.dll
+C:\Users\smurr\OneDrive\Desktop\limited\ExileApi-Compiled-3.26.0.0.1\ExileApi-Compiled-3.26.0.0.1\Plugins\Source\Follower-main\obj\Debug\net8.0-windows\win-x64\refint\Follower.dll
+C:\Users\smurr\OneDrive\Desktop\limited\ExileApi-Compiled-3.26.0.0.1\ExileApi-Compiled-3.26.0.0.1\Plugins\Source\Follower-main\obj\Debug\net8.0-windows\win-x64\ref\Follower.dll
