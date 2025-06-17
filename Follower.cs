@@ -133,7 +133,7 @@ namespace Follower
             var optInButton = allUiElements.FirstOrDefault(e => 
                                     e.IsVisible && 
                                     e.Text != null &&
-                                    e.Text.Equals("Opt In", StringComparison.OrdinalIgnoreCase) &&
+                                    e.Text.Equals("Opt-In", StringComparison.OrdinalIgnoreCase) &&
                                     e.GetClientRect().Contains(monsterScreenPos));
 
             if (optInButton != null)
