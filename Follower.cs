@@ -30,7 +30,7 @@ namespace Follower
         private Entity _followTarget;
         private List<TaskNode> _tasks = new List<TaskNode>();
         private bool _hasUsedWp;
-
+        private volatile bool _mercClickRequested = false;
         private int _numRows, _numCols;
         private byte[,] _tiles;
 
@@ -94,6 +94,66 @@ namespace Follower
             return null; // The main logic is no longer here.
         }
 
+        private void GetAllChildrenRecursive(Element element, List<Element> allChildren)
+        {
+            if (element.Children == null)
+                return;
+
+            foreach (var child in element.Children)
+            {
+                allChildren.Add(child);
+                // This is the recursion: call the function on the child element
+                GetAllChildrenRecursive(child, allChildren);
+            }
+        }
+        private IEnumerator ClickMercButton()
+        {
+            // The exact metadata path you found in DevTree.
+            const string MercenaryMetadata = "Metadata/Monsters/Mercenaries/MercenaryShadow2";
+
+            // Step 1: Find the mercenary monster entity.
+            var mercenaryMonster = GameController.EntityListWrapper.ValidEntitiesByType[ExileCore.Shared.Enums.EntityType.Monster]
+                                                .FirstOrDefault(m => m.Metadata == MercenaryMetadata);
+
+            if (mercenaryMonster == null)
+            {
+                LogError("Could not find the mercenary monster entity in the area.", 5);
+                yield break;
+            }
+
+            // Step 2: Convert the monster's world position to a screen position.
+            var monsterScreenPos = Camera.WorldToScreen(mercenaryMonster.Pos);
+
+            // Step 3: Manually build a list of ALL UI elements on screen.
+            var uiRoot = GameController.Game.IngameState.IngameUi;
+            var allUiElements = new List<Element>();
+            GetAllChildrenRecursive(uiRoot, allUiElements); // Use our new helper
+
+            // Step 4: Search our complete list for the button.
+            var optInButton = allUiElements.FirstOrDefault(e => 
+                                    e.IsVisible && 
+                                    e.Text != null &&
+                                    e.Text.Equals("Opt In", StringComparison.OrdinalIgnoreCase) &&
+                                    e.GetClientRect().Contains(monsterScreenPos));
+
+            if (optInButton != null)
+            {
+                // The visible element IS the clickable element in this case.
+                LogMessage("Found Opt-In button by text and location! Attempting to click.", 3, SharpDX.Color.LawnGreen);
+
+                var buttonPos = optInButton.GetClientRect().Center;
+                
+                yield return Mouse.SetCursorPosHuman(buttonPos, false);
+                yield return new WaitTime(50);
+                Mouse.LeftClick();
+                yield return new WaitTime(200);
+            }
+            else
+            {
+                LogError("Found the monster, but could not find a matching 'Opt In' UI element at its location.", 5);
+            }
+        }
+
         private IEnumerator BotLogic()
         {
             while (true) // The main loop will now run very fast
@@ -104,6 +164,14 @@ namespace Follower
                     ResetState();
                     yield return new WaitTime(75); // Wait if we're in a state where we can't act
                     continue;
+                }
+
+                // --- ADD THIS NEW BLOCK FOR THE MERCENARY ---
+                if (_mercClickRequested)
+                {
+                    _mercClickRequested = false; // Reset the flag immediately
+                    yield return ClickMercButton();
+                    continue; // Action taken, restart the loop to re-evaluate everything
                 }
 
                 var playerDistanceMoved = Vector3.Distance(GameController.Player.Pos, _lastPlayerPosition);
@@ -133,10 +201,12 @@ namespace Follower
                     // }
 
                     var portal = GetBestPortalToFollow(leaderPartyElement);
-                    if (portal != null && !IsInLabyrinth() && (bool)Instance?.GameController?.Area?.CurrentArea?.IsHideout){
+                    if (portal != null && !IsInLabyrinth() && (bool)Instance?.GameController?.Area?.CurrentArea?.IsHideout)
+                    {
                         // hideout -> Map || Chamber of Sins A7 -> Map
                         _tasks.Add(new TaskNode(portal, 200, TaskNodeType.Transition));
-                    } else if (IsInLabyrinth())
+                    }
+                    else if (IsInLabyrinth())
                     {
                         // Labyrinth transition
                         var transition = GetBestPortalToFollow(leaderPartyElement);
@@ -144,12 +214,14 @@ namespace Follower
                         {
                             _tasks.Add(new TaskNode(transition, 200, TaskNodeType.Transition));
                         }
-                    } else {
+                    }
+                    else
+                    {
                         // tp?
                         var tpButton = GetTpButton(leaderPartyElement);
-                        if(!tpButton.Equals(Vector2.Zero))
+                        if (!tpButton.Equals(Vector2.Zero))
                         {
-                            yield return Mouse.SetCursorPosHuman(tpButton,false);
+                            yield return Mouse.SetCursorPosHuman(tpButton, false);
                             yield return new WaitTime(200);
                             yield return Mouse.LeftClick();
                             yield return new WaitTime(200);
@@ -173,7 +245,7 @@ namespace Follower
                     var distanceFromLeader = Vector3.Distance(GameController.Player.Pos, leaderPos);
                     var distanceMoved = Vector3.Distance(_lastTargetPosition, leaderPos);
 
-                    
+
                     if (distanceFromLeader >= Settings.ClearPathDistance)
                     {
                         playerDistanceMoved = Vector3.Distance(GameController.Player.Pos, _lastPlayerPosition);
@@ -217,10 +289,10 @@ namespace Follower
                     {
                         if (_tasks.Count > 0)
                         {
-							for (var i = _tasks.Count - 1; i >= 0; i--)
-								if (_tasks[i].Type == TaskNodeType.Movement || _tasks[i].Type == TaskNodeType.Transition)
-									_tasks.RemoveAt(i);
-							yield return null;
+                            for (var i = _tasks.Count - 1; i >= 0; i--)
+                                if (_tasks[i].Type == TaskNodeType.Movement || _tasks[i].Type == TaskNodeType.Transition)
+                                    _tasks.RemoveAt(i);
+                            yield return null;
                         }
                         if (Settings.IsCloseFollowEnabled)
                         {
@@ -242,8 +314,8 @@ namespace Follower
                     // {
                     //     _tasks.RemoveAll(t => t.Type == TaskNodeType.Movement || t.Type == TaskNodeType.Transition);
                     // }
-					if (leaderPos != null)
-						_lastTargetPosition = leaderPos;
+                    if (leaderPos != null)
+                        _lastTargetPosition = leaderPos;
                 }
 
 
@@ -255,48 +327,51 @@ namespace Follower
                     currentTask.AttemptCount++;
 
                     float distanceToTask = Vector3.Distance(GameController.Player.Pos, currentTask.WorldPosition);
-					playerDistanceMoved = Vector3.Distance(GameController.Player.Pos, _lastPlayerPosition);
+                    playerDistanceMoved = Vector3.Distance(GameController.Player.Pos, _lastPlayerPosition);
 
-					//We are using a same map transition and have moved significnatly since last tick. Mark the transition task as done.
-					if (currentTask.Type == TaskNodeType.Transition && 
-					    playerDistanceMoved >= Settings.ClearPathDistance)
-					{
-						_tasks.RemoveAt(0);
+                    //We are using a same map transition and have moved significnatly since last tick. Mark the transition task as done.
+                    if (currentTask.Type == TaskNodeType.Transition &&
+                        playerDistanceMoved >= Settings.ClearPathDistance)
+                    {
+                        _tasks.RemoveAt(0);
                         _lastPlayerPosition = GameController.Player.Pos;
-						yield return null;
-						continue;
-					}
+                        yield return null;
+                        continue;
+                    }
 
                     switch (currentTask.Type)
                     {
                         case TaskNodeType.Movement:
 
-							if (Settings.IsDashEnabled && CheckDashTerrain(currentTask.WorldPosition.WorldToGrid()))
-								yield return null;
-							yield return Mouse.SetCursorPosHuman(WorldToValidScreenPosition(currentTask.WorldPosition));
-							yield return new WaitTime(random.Next(25) + 30);
-							Input.KeyDown(Settings.MovementKey);
-							yield return new WaitTime(random.Next(25) + 30);
-							Input.KeyUp(Settings.MovementKey);
+                            if (Settings.IsDashEnabled && CheckDashTerrain(currentTask.WorldPosition.WorldToGrid()))
+                                yield return null;
+                            yield return Mouse.SetCursorPosHuman(WorldToValidScreenPosition(currentTask.WorldPosition));
+                            yield return new WaitTime(random.Next(25) + 30);
+                            Input.KeyDown(Settings.MovementKey);
+                            yield return new WaitTime(random.Next(25) + 30);
+                            Input.KeyUp(Settings.MovementKey);
 
                             if (distanceToTask <= Settings.PathfindingNodeDistance * 1.5)
                             {
                                 _tasks.RemoveAt(0);
                                 continue; // Task done, immediately get the next one.
-                            } else {
+                            }
+                            else
+                            {
                                 currentTask.AttemptCount++;
-                                if (currentTask.AttemptCount > 5){
+                                if (currentTask.AttemptCount > 5)
+                                {
                                     var transition4 = GetBestPortalToFollow(leaderPartyElement);
-									if (transition4 != null && transition4.ItemOnGround.DistancePlayer < 100)
-									{
-										_tasks.RemoveAt(0);
-										_tasks.Add(new TaskNode(transition4,200, TaskNodeType.Transition));
-									}
+                                    if (transition4 != null && transition4.ItemOnGround.DistancePlayer < 100)
+                                    {
+                                        _tasks.RemoveAt(0);
+                                        _tasks.Add(new TaskNode(transition4, 200, TaskNodeType.Transition));
+                                    }
                                 }
                             }
-							yield return null;
-							yield return null;
-							continue;
+                            yield return null;
+                            yield return null;
+                            continue;
 
                         case TaskNodeType.Transition:
                             Input.KeyUp(Settings.MovementKey); // Stop moving
@@ -306,25 +381,28 @@ namespace Follower
                             // The logic at the top of the loop will handle success.
                             break;
 
-							currentTask.AttemptCount++;
-							if (currentTask.AttemptCount > 6){
-								while(_tasks?.Count > 0){
-									_tasks.RemoveAt(0);
-								}
-								var transition2 = GetBestPortalToFollow(leaderPartyElement);
-								if (transition2 != null && transition2.ItemOnGround.DistancePlayer < 100)
-								{
-									_tasks.Add(new TaskNode(transition2,200, TaskNodeType.Transition));
-								}
-								yield return null;
-								continue;
-							} else
-							{
-								yield return null;
-								continue;
-							}
-                        
-                        // Add other task types (Loot, etc.) here
+                            currentTask.AttemptCount++;
+                            if (currentTask.AttemptCount > 6)
+                            {
+                                while (_tasks?.Count > 0)
+                                {
+                                    _tasks.RemoveAt(0);
+                                }
+                                var transition2 = GetBestPortalToFollow(leaderPartyElement);
+                                if (transition2 != null && transition2.ItemOnGround.DistancePlayer < 100)
+                                {
+                                    _tasks.Add(new TaskNode(transition2, 200, TaskNodeType.Transition));
+                                }
+                                yield return null;
+                                continue;
+                            }
+                            else
+                            {
+                                yield return null;
+                                continue;
+                            }
+
+                            // Add other task types (Loot, etc.) here
                     }
                 }
 
@@ -333,7 +411,7 @@ namespace Follower
 
                 // This is now the ONLY delay for a standard, active loop pass.
                 // It defines the bot's "heartbeat". 50ms is very responsive.
-                yield return new WaitTime(25); 
+                yield return new WaitTime(25);
             }
         }
 
@@ -359,9 +437,14 @@ namespace Follower
                 {
                     Settings.IsFollowEnabled.SetValueNoEvent(true);
                 }
+                // --- ADD THIS NEW BLOCK ---
+                else if (commandToProcess == "CLICK_MERC")
+                {
+                    LogMessage("Mercenary click command received!", 3, SharpDX.Color.Aqua);
+                    _mercClickRequested = true;
+                }
             }
         }
-
         // --- (Paste all your other helper methods and Render here) ---
 
         public bool IsInLabyrinth()
