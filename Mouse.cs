@@ -24,7 +24,7 @@ namespace Follower
         private static extern bool SetCursorPos(int x, int y);
 
         [DllImport("user32.dll")]
-        public static extern void mouse_event(int dwFlags, int dx, int dy, int cButtons, int dwExtraInfo);
+        private static extern void mouse_event(int dwFlags, int dx, int dy, int cButtons, int dwExtraInfo);
 
         [DllImport("user32.dll")]
         public static void SetCursorPos(Vector2 pos)
