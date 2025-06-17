@@ -1,14 +1,26 @@
 ﻿using System;
 using System.Collections;
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.InteropServices;
+using System.Windows.Forms;
+using ExileCore.Shared;
 using SharpDX;
-using ExileCore.Shared; // Required for WaitTime
 
 namespace Follower
 {
     public static class Mouse
     {
-        [DllImport("user32.dll")]
+
+        public const int MouseeventfMove = 0x0001;
+        public const int MouseeventfLeftdown = 0x02;
+        public const int MouseeventfLeftup = 0x04;
+        public const int MouseeventfMiddown = 0x0020;
+        public const int MouseeventfMidup = 0x0040;
+        public const int MouseeventfRightdown = 0x0008;
+        public const int MouseeventfRightup = 0x0010;
+        public const int MouseEventWheel = 0x800;
+
+        public static float speedMouse = 1;
         private static extern bool SetCursorPos(int x, int y);
 
         [DllImport("user32.dll")]
@@ -22,36 +34,54 @@ namespace Follower
             SetCursorPos((int)pos.X, (int)pos.Y);
         }
 
+        public static void LeftMouseDown()
+        {
+            mouse_event(MouseeventfLeftdown, 0, 0, 0, 0);
+        }
+
+        public static void LeftMouseUp()
+        {
+            mouse_event(MouseeventfLeftup, 0, 0, 0, 0);
+        }
+
         public static IEnumerator LeftClick()
         {
-            mouse_event(MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0);
-            yield return new WaitTime(20 + new Random().Next(30));
-            mouse_event(MOUSEEVENTF_LEFTUP, 0, 0, 0, 0);
+            LeftMouseDown();
+            yield return new WaitTime(40);
+            LeftMouseUp();
+            yield return new WaitTime(100);
         }
 
         /// <summary>
         /// Moves the mouse smoothly from its current position to the target.
         /// </summary>
-        public static IEnumerator SetCursorPosHuman(Vector2 targetPos)
+        public static IEnumerator SetCursorPosHuman(Vector2 targetPos, bool limited=true)
         {
-            var initialPos = Follower.Instance.GetMousePosition();
-            var distance = Vector2.Distance(initialPos, targetPos);
-            
-            if (distance < 3)
+
+            // Keep Curser Away from Screen Edges to prevent UI Interaction.
+            var windowRect = Follower.Instance.GameController.Window.GetWindowRectangle();
+            var edgeBoundsX = windowRect.Size.Width / 4;
+            var edgeBoundsY = windowRect.Size.Height / 4;
+
+            if (limited)
             {
+                if (targetPos.X <= windowRect.Left + edgeBoundsX ) targetPos.X = windowRect.Left + edgeBoundsX;
+                if (targetPos.Y <= windowRect.Top + edgeBoundsY) targetPos.Y = windowRect.Left + edgeBoundsY;
+                if (targetPos.X >= windowRect.Right - edgeBoundsX) targetPos.X = windowRect.Right -edgeBoundsX;
+                if (targetPos.Y >= windowRect.Bottom - edgeBoundsY) targetPos.Y = windowRect.Bottom - edgeBoundsY;
+            }
+
+            var step = (float)Math.Sqrt(Vector2.Distance(Follower.Instance.GetMousePosition(), targetPos)) * speedMouse / 20;
+
+            if (step > 6)
+                for (var i = 0; i < step; i++)
+                {
+                    var vector2 = Vector2.SmoothStep(Follower.Instance.GetMousePosition(), targetPos, i / step);
+                    SetCursorPos((int)vector2.X, (int)vector2.Y);
+                    yield return new WaitTime(5);
+                }
+            else
                 SetCursorPos(targetPos);
-                yield break; // Exit the coroutine
-            }
-
-            var steps = (int)Math.Min(30, distance / 15);
-            if (steps < 5) steps = 5;
-
-            for (var i = 1; i <= steps; i++)
-            {
-                var nextPos = Vector2.Lerp(initialPos, targetPos, (float)i / steps);
-                SetCursorPos(nextPos);
-                yield return new WaitTime(2); // Wait 2ms between each small move
-            }
         }
 
         /// <summary>
@@ -61,7 +91,9 @@ namespace Follower
         {
             yield return SetCursorPosHuman(coords);
             yield return new WaitTime(Follower.Instance.Settings.BotInputFrequency + extraDelay);
-            yield return LeftClick();
+            LeftMouseDown();
+            yield return new WaitTime(Follower.Instance.Settings.BotInputFrequency + extraDelay);
+            LeftMouseUp();
             yield return new WaitTime(100);
         }
     }

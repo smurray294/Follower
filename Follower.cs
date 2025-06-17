@@ -102,7 +102,7 @@ namespace Follower
                 if (!GameController.Player.IsAlive || GameController.IsLoading)
                 {
                     ResetState();
-                    yield return new WaitTime(250); // Wait if we're in a state where we can't act
+                    yield return new WaitTime(75); // Wait if we're in a state where we can't act
                     continue;
                 }
 
