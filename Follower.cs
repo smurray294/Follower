@@ -141,7 +141,7 @@ namespace Follower
                 
                 yield return Mouse.SetCursorPosHuman(buttonPos, false);
                 yield return new WaitTime(50);
-                Mouse.LeftClick();
+                yield return Mouse.LeftClick();
                 yield return new WaitTime(200);
             }
             else
