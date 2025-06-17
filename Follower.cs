@@ -448,32 +448,38 @@ namespace Follower
         //     catch { return null; }
         // }
 
-        private Vector2 GetTpButton(PartyElementWindow leaderPartyElement)
-        {
-            try
-            {
-                if (leaderPartyElement == null || leaderPartyElement.TpButton == null || !leaderPartyElement.TpButton.IsVisible)
-                    return Vector2.Zero;
+		private Vector2 GetTpButton(PartyElementWindow leaderPartyElement)
+		{
+			try
+			{
+				var windowOffset = Follower.Instance.GameController.Window.GetWindowRectangle().TopLeft;
+				var elemCenter = (Vector2) leaderPartyElement?.TpButton?.GetClientRectCache.Center;
+				var finalPos = new Vector2(elemCenter.X + windowOffset.X, elemCenter.Y + windowOffset.Y);
+				
+				return finalPos;
+			}
+			catch
+			{
+				return Vector2.Zero;
+			}
+		}
 
-                var windowOffset = GameController.Window.GetWindowRectangle().TopLeft;
-                var elemCenter = leaderPartyElement.TpButton.GetClientRectCache.Center;
-                return new Vector2(elemCenter.X + windowOffset.X, elemCenter.Y + windowOffset.Y);
-            }
-            catch { return Vector2.Zero; }
-        }
+		private Element GetTpConfirmation()
+		{
+			try
+			{
+				var ui = Follower.Instance.GameController?.IngameState?.IngameUi?.PopUpWindow;
 
-        private Element GetTpConfirmation()
-        {
-            try
-            {
-                var popUp = GameController.IngameState.IngameUi.PopUpWindow;
-                if (popUp != null && popUp.IsVisible && popUp.Children[0].Children[0].Children[0].Text
-                    .Contains("teleport to this player's location"))
-                    return popUp.Children[0].Children[0].Children[3].Children[0]; //This is the "OK" button
-                return null;
-            }
-            catch { return null; }
-        }
+				if (ui.Children[0].Children[0].Children[0].Text.Equals("Are you sure you want to teleport to this player's location?"))
+					return ui.Children[0].Children[0].Children[3].Children[0];
+				
+				return null;
+			}
+			catch
+			{
+				return null;
+			}
+		}
 
         private bool CheckDashTerrain(Vector2 targetPosition)
         {
