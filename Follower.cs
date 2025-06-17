@@ -125,21 +125,21 @@ namespace Follower
                 {
                     // if (!_tasks.Any()) 
                     // {
-                    //     var portalLabel = GetBestPortalToFollow(_lastTargetPosition);
+                    //     var portalLabel = GetBestPortalToFollow(leaderPartyElement);
                     //     if (portalLabel != null)
                     //     {
                     //         _tasks.Add(new TaskNode(portalLabel, 200, TaskNodeType.Transition));
                     //     }
                     // }
 
-                    var portal = GetBestPortalToFollow(_lastTargetPosition);
+                    var portal = GetBestPortalToFollow(leaderPartyElement);
                     if (portal != null && !IsInLabyrinth() && (bool)Instance?.GameController?.Area?.CurrentArea?.IsHideout){
                         // hideout -> Map || Chamber of Sins A7 -> Map
                         _tasks.Add(new TaskNode(portal, 200, TaskNodeType.Transition));
                     } else if (IsInLabyrinth())
                     {
                         // Labyrinth transition
-                        var transition = GetBestPortalToFollow(_lastTargetPosition);
+                        var transition = GetBestPortalToFollow(leaderPartyElement);
                         if (transition != null && transition.ItemOnGround.DistancePlayer < 100)
                         {
                             _tasks.Add(new TaskNode(transition, 200, TaskNodeType.Transition));
@@ -176,7 +176,7 @@ namespace Follower
                     // leader moved very far in 1 frame
                     if (distanceFromLeader >= Settings.ClearPathDistance)
                     {
-                        var transition2 = GetBestPortalToFollow(_lastTargetPosition);
+                        var transition2 = GetBestPortalToFollow(leaderPartyElement);
                         if (transition2 != null && transition2.ItemOnGround.DistancePlayer < 300)
                         {
                             _tasks.Add(new TaskNode(transition2, 200, TaskNodeType.Transition));
@@ -202,7 +202,7 @@ namespace Follower
                         //leader is far and we have no _tasks, stuck at a transition?
                         else if (_tasks.Count == 0 && distanceFromLeader > 2000)
                         {
-                            var transition3 = GetBestPortalToFollow(_lastTargetPosition);
+                            var transition3 = GetBestPortalToFollow(leaderPartyElement);
                             if (transition3 != null && transition3.ItemOnGround.DistancePlayer < 500)
                             {
                                 _tasks.Add(new TaskNode(transition3, 200, TaskNodeType.Transition));
@@ -282,7 +282,7 @@ namespace Follower
                             } else {
                                 currentTask.AttemptCount++;
                                 if (currentTask.AttemptCount > 5){
-                                    var transition4 = GetBestPortalToFollow(_lastTargetPosition);
+                                    var transition4 = GetBestPortalToFollow(leaderPartyElement);
 									if (transition4 != null && transition4.ItemOnGround.DistancePlayer < 100)
 									{
 										_tasks.RemoveAt(0);
@@ -307,7 +307,7 @@ namespace Follower
 								while(_tasks?.Count > 0){
 									_tasks.RemoveAt(0);
 								}
-								var transition2 = GetBestPortalToFollow(_lastTargetPosition);
+								var transition2 = GetBestPortalToFollow(leaderPartyElement);
 								if (transition2 != null && transition2.ItemOnGround.DistancePlayer < 100)
 								{
 									_tasks.Add(new TaskNode(transition2,200, TaskNodeType.Transition));
@@ -329,7 +329,7 @@ namespace Follower
 
                 // This is now the ONLY delay for a standard, active loop pass.
                 // It defines the bot's "heartbeat". 50ms is very responsive.
-                yield return new WaitTime(50); 
+                yield return new WaitTime(25); 
             }
         }
 
@@ -382,30 +382,67 @@ namespace Follower
             return areaId.Contains("Labyrinth", StringComparison.OrdinalIgnoreCase);
         }
 
-        private LabelOnGround GetBestPortalToFollow(Vector3? targetPos = null)
+        private LabelOnGround GetBestPortalToFollow(PartyElementWindow leaderPartyElement)
         {
-            try
-            {
-                var portalLabels = GameController.Game.IngameState.IngameUi.ItemsOnGroundLabels
-                    .Where(x => x != null && x.IsVisible && x.Label != null && x.Label.IsValid && x.ItemOnGround != null &&
-                                (x.ItemOnGround.Metadata.ToLower().Contains("areatransition") || x.ItemOnGround.Metadata.ToLower().Contains("portal") || x.ItemOnGround.Metadata.ToLower().Contains("woodsentrancetransition")))
-                    .ToList();
+	        try
+	        {
+				var currentZoneName = Instance.GameController?.Area.CurrentArea.DisplayName;
+				if(leaderPartyElement.ZoneName.Equals(currentZoneName) || (!leaderPartyElement.ZoneName.Equals(currentZoneName) && ((bool)Instance?.GameController?.Area?.CurrentArea?.IsHideout || (IsInLabyrinth())))) // TODO: or is chamber of sins a7 or is epilogue
+				{
+					if((IsInLabyrinth())){
+						var portalLabels =
+						Instance.GameController?.Game?.IngameState?.IngameUi?.ItemsOnGroundLabels.Where(x =>
+							x != null && x.IsVisible && x.Label != null && x.Label.IsValid && x.Label.IsVisible && x.ItemOnGround != null)
+							.OrderBy(x => Vector3.Distance(_lastPlayerPosition, x.ItemOnGround.Pos)).ToList();
 
-                if (IsInLabyrinth())
-                {
-                    portalLabels = GameController.Game.IngameState.IngameUi.ItemsOnGroundLabels
-                        .Where(x => x != null && x.IsVisible && x.Label != null && x.Label.IsValid && x.ItemOnGround != null)
-                        .ToList();
-                }
+						return Instance?.GameController?.Area?.CurrentArea?.IsHideout != null && (bool)Instance.GameController?.Area?.CurrentArea?.IsHideout
+							? portalLabels?[random.Next(portalLabels.Count)]
+							: portalLabels?.FirstOrDefault();
+					} else {
+						var portalLabels =
+							Instance.GameController?.Game?.IngameState?.IngameUi?.ItemsOnGroundLabels.Where(x =>
+							x != null && x.IsVisible && x.Label != null && x.Label.IsValid && x.Label.IsVisible && x.ItemOnGround != null && 
+							(x.ItemOnGround.Metadata.ToLower().Contains("areatransition") || x.ItemOnGround.Metadata.ToLower().Contains("portal") || x.ItemOnGround.Metadata.ToLower().Contains("woodsentrancetransition") ))
+							.OrderBy(x => Vector3.Distance(_lastPlayerPosition, x.ItemOnGround.Pos)).ToList();
 
-                if (targetPos.HasValue)
-                {
-                    return portalLabels.OrderBy(x => Vector3.Distance(targetPos.Value, x.ItemOnGround.Pos)).FirstOrDefault();
-                }
-                return portalLabels.OrderBy(x => x.ItemOnGround.DistancePlayer).FirstOrDefault();
-            }
-            catch { return null; }
+						//debug1 = portalLabels?.FirstOrDefault().ItemOnGround.Metadata.ToLower();
+
+						return Instance?.GameController?.Area?.CurrentArea?.IsHideout != null && (bool)Instance.GameController?.Area?.CurrentArea?.IsHideout
+							? portalLabels?[random.Next(portalLabels.Count)]
+							: portalLabels?.FirstOrDefault();
+					}
+
+				}
+				return null;
+	        }
+	        catch
+	        {
+		        return null;
+	        }
         }
+        // {
+        //     try
+        //     {
+        //         var portalLabels = GameController.Game.IngameState.IngameUi.ItemsOnGroundLabels
+        //             .Where(x => x != null && x.IsVisible && x.Label != null && x.Label.IsValid && x.ItemOnGround != null &&
+        //                         (x.ItemOnGround.Metadata.ToLower().Contains("areatransition") || x.ItemOnGround.Metadata.ToLower().Contains("portal") || x.ItemOnGround.Metadata.ToLower().Contains("woodsentrancetransition")))
+        //             .ToList();
+
+        //         if (IsInLabyrinth())
+        //         {
+        //             portalLabels = GameController.Game.IngameState.IngameUi.ItemsOnGroundLabels
+        //                 .Where(x => x != null && x.IsVisible && x.Label != null && x.Label.IsValid && x.ItemOnGround != null)
+        //                 .ToList();
+        //         }
+
+        //         if (targetPos.HasValue)
+        //         {
+        //             return portalLabels.OrderBy(x => Vector3.Distance(targetPos.Value, x.ItemOnGround.Pos)).FirstOrDefault();
+        //         }
+        //         return portalLabels.OrderBy(x => x.ItemOnGround.DistancePlayer).FirstOrDefault();
+        //     }
+        //     catch { return null; }
+        // }
 
         private Vector2 GetTpButton(PartyElementWindow leaderPartyElement)
         {
@@ -565,7 +602,7 @@ namespace Follower
 
             // THIS IS THE FIX: Use the full, direct path you found in DevTree
             var currentArea = GameController.Game.IngameState.Data.CurrentArea;
-            //(bool)CoPilot.Instance?.GameController?.Game?.IngameState?.Data?.CurrentWorldArea?.IsLabyrinthArea
+            //(bool)Instance?.GameController?.Game?.IngameState?.Data?.CurrentWorldArea?.IsLabyrinthArea
             if (currentArea != null)
             {
                 // Now, we can access the 'Id' property from this correct object
