@@ -189,7 +189,7 @@ namespace Follower
                 _followTarget = GetFollowingTarget();
                 var leaderPartyElement = GetLeaderPartyElement();
                 // (Your existing logic for creating _tasks when leader is far/near goes here. It doesn't need yields.)
-                if (_followTarget == null && leaderPartyElement != null && leaderPartyElement.ZoneName != GameController.Game.IngameState.Data.CurrentArea.Name && leaderPartyElement.ZoneName != null)
+                if (_followTarget == null && leaderPartyElement != null && leaderPartyElement.ZoneName != GameController.Area.CurrentArea.DisplayName && leaderPartyElement.ZoneName != null)
                 {
                     // if (!_tasks.Any()) 
                     // {
