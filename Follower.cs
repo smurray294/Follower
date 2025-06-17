@@ -108,12 +108,9 @@ namespace Follower
         }
         private IEnumerator ClickMercButton()
         {
-            // The exact metadata path you found in DevTree.
             const string MercenaryMetadata = "Metadata/Monsters/Mercenaries/MercenaryShadow2";
-
-            // Step 1: Find the mercenary monster entity.
-            var mercenaryMonster = GameController.EntityListWrapper.ValidEntitiesByType[ExileCore.Shared.Enums.EntityType.Monster]
-                                                .FirstOrDefault(m => m.Metadata == MercenaryMetadata);
+            var mercenaryMonster = GameController.EntityListWrapper.Entities
+                                                .FirstOrDefault(m => m.Type == EntityType.Monster && m.IsAlive && m.Metadata == MercenaryMetadata);
 
             if (mercenaryMonster == null)
             {
@@ -121,26 +118,25 @@ namespace Follower
                 yield break;
             }
 
-            // Step 2: Convert the monster's world position to a screen position.
             var monsterScreenPos = Camera.WorldToScreen(mercenaryMonster.Pos);
-
-            // Step 3: Manually build a list of ALL UI elements on screen.
-            var uiRoot = GameController.Game.IngameState.IngameUi;
             var allUiElements = new List<Element>();
-            GetAllChildrenRecursive(uiRoot, allUiElements); // Use our new helper
+            GetAllChildrenRecursive(GameController.Game.IngameState.IngameUi, allUiElements);
 
-            // Step 4: Search our complete list for the button.
-            var optInButton = allUiElements.FirstOrDefault(e => 
-                                    e.IsVisible && 
+            // We will search for a button that is close to the monster, not strictly containing its origin point.
+            const float searchRadius = 200f; // A generous search radius in screen pixels.
+
+            // --- REVISED SEARCH LOGIC ---
+            var optInButton = allUiElements.FirstOrDefault(e =>
+                                    e.IsVisible &&
                                     e.Text != null &&
-                                    e.Text.Equals("Opt-In", StringComparison.OrdinalIgnoreCase) &&
-                                    e.GetClientRect().Contains(monsterScreenPos));
+                                    // 1. Fixed the hyphen
+                                    e.Text.Equals("Opt-In", StringComparison.OrdinalIgnoreCase) && 
+                                    // 2. Using a more forgiving distance check
+                                    Vector2.Distance(e.GetClientRect().Center, monsterScreenPos) < searchRadius); 
 
             if (optInButton != null)
             {
-                // The visible element IS the clickable element in this case.
-                LogMessage("Found Opt-In button by text and location! Attempting to click.", 3, SharpDX.Color.LawnGreen);
-
+                LogMessage("Found Opt-In button by text and distance! Attempting to click.", 3, SharpDX.Color.LawnGreen);
                 var buttonPos = optInButton.GetClientRect().Center;
                 
                 yield return Mouse.SetCursorPosHuman(buttonPos, false);
@@ -150,7 +146,7 @@ namespace Follower
             }
             else
             {
-                LogError("Found the monster, but could not find a matching 'Opt In' UI element at its location.", 5);
+                LogError("Found the monster, but could not find a matching 'Opt-In' UI element near its location.", 5);
             }
         }
 
