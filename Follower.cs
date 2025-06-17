@@ -173,13 +173,17 @@ namespace Follower
                     var distanceFromLeader = Vector3.Distance(GameController.Player.Pos, leaderPos);
                     var distanceMoved = Vector3.Distance(_lastTargetPosition, leaderPos);
 
-                    // leader moved very far in 1 frame
+                    
                     if (distanceFromLeader >= Settings.ClearPathDistance)
                     {
-                        var transition2 = GetBestPortalToFollow(leaderPartyElement);
-                        if (transition2 != null && transition2.ItemOnGround.DistancePlayer < 300)
+                        playerDistanceMoved = Vector3.Distance(GameController.Player.Pos, _lastPlayerPosition);
+                        if (distanceMoved > Settings.ClearPathDistance)
                         {
-                            _tasks.Add(new TaskNode(transition2, 200, TaskNodeType.Transition));
+                            var transition2 = GetBestPortalToFollow(leaderPartyElement);
+                            if (transition2 != null && transition2.ItemOnGround.DistancePlayer < 300)
+                            {
+                                _tasks.Add(new TaskNode(transition2, 200, TaskNodeType.Transition));
+                            }
                         }
                         // we have no path, set us to go to leader pos
                         else if (_tasks.Count == 0 && distanceMoved < 2000 && distanceFromLeader > 200 && distanceFromLeader < 2000)
