@@ -149,7 +149,7 @@ namespace Follower
                         var tpButton = GetTpButton(leaderPartyElement);
                         if(!tpButton.Equals(Vector2.Zero))
                         {
-                            yield return Mouse.SetCursorPosHuman(tpButton);
+                            yield return Mouse.SetCursorPosHuman(tpButton,false);
                             yield return new WaitTime(200);
                             yield return Mouse.LeftClick();
                             yield return new WaitTime(200);
