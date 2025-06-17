@@ -133,7 +133,7 @@ namespace Follower
                     // }
 
                     var portal = GetBestPortalToFollow(_lastTargetPosition);
-                    if (portal != null && !IsInLabyrinth()){
+                    if (portal != null && !IsInLabyrinth() && (bool)Instance?.GameController?.Area?.CurrentArea?.IsHideout){
                         // hideout -> Map || Chamber of Sins A7 -> Map
                         _tasks.Add(new TaskNode(portal, 200, TaskNodeType.Transition));
                     } else if (IsInLabyrinth())
