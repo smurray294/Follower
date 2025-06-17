@@ -181,36 +181,34 @@ namespace Follower
                         {
                             _tasks.Add(new TaskNode(transition2, 200, TaskNodeType.Transition));
                         }
+                        // we have no path, set us to go to leader pos
+                        else if (_tasks.Count == 0 && distanceMoved < 2000 && distanceFromLeader > 200 && distanceFromLeader < 2000)
 
-                    }
-                    // we have no path, set us to go to leader pos
-                    else if (_tasks.Count == 0 && distanceMoved < 2000 && distanceFromLeader > 200 && distanceFromLeader < 2000)
-
-                    {
-                        // Add a movement task to the leader's position
-                        _tasks.Add(new TaskNode(leaderPos, Settings.PathfindingNodeDistance));
-                    }
-
-                    else if (_tasks.Count > 0)
-                    {
-                        var distanceToTask = Vector3.Distance(GameController.Player.Pos, _tasks.Last().WorldPosition);
-                        if (distanceToTask >= Settings.PathfindingNodeDistance)
                         {
-                            // If the last task is too far, we can remove it
+                            // Add a movement task to the leader's position
                             _tasks.Add(new TaskNode(leaderPos, Settings.PathfindingNodeDistance));
                         }
-                    }
 
-                    //leader is far and we have no _tasks, stuck at a transition?
-                    else if (_tasks.Count == 0 && distanceFromLeader > 2000)
-                    {
-                        var transition3 = GetBestPortalToFollow(_lastTargetPosition);
-                        if (transition3 != null && transition3.ItemOnGround.DistancePlayer < 500)
+                        else if (_tasks.Count > 0)
                         {
-                            _tasks.Add(new TaskNode(transition3, 200, TaskNodeType.Transition));
+                            var distanceToTask = Vector3.Distance(GameController.Player.Pos, _tasks.Last().WorldPosition);
+                            if (distanceToTask >= Settings.PathfindingNodeDistance)
+                            {
+                                // If the last task is too far, we can remove it
+                                _tasks.Add(new TaskNode(leaderPos, Settings.PathfindingNodeDistance));
+                            }
+                        }
+
+                        //leader is far and we have no _tasks, stuck at a transition?
+                        else if (_tasks.Count == 0 && distanceFromLeader > 2000)
+                        {
+                            var transition3 = GetBestPortalToFollow(_lastTargetPosition);
+                            if (transition3 != null && transition3.ItemOnGround.DistancePlayer < 500)
+                            {
+                                _tasks.Add(new TaskNode(transition3, 200, TaskNodeType.Transition));
+                            }
                         }
                     }
-
                     else
                     {
                         if (_tasks.Count > 0)
