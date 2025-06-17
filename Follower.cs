@@ -120,35 +120,128 @@ namespace Follower
                 _followTarget = GetFollowingTarget();
                 var leaderPartyElement = GetLeaderPartyElement();
 
-                // (Your existing logic for creating tasks when leader is far/near goes here. It doesn't need yields.)
+                // (Your existing logic for creating _tasks when leader is far/near goes here. It doesn't need yields.)
                 if (_followTarget == null && leaderPartyElement != null && leaderPartyElement.ZoneName != GameController.Game.IngameState.Data.CurrentArea.Name)
                 {
-                    if (!_tasks.Any()) 
+                    // if (!_tasks.Any()) 
+                    // {
+                    //     var portalLabel = GetBestPortalToFollow(_lastTargetPosition);
+                    //     if (portalLabel != null)
+                    //     {
+                    //         _tasks.Add(new TaskNode(portalLabel, 200, TaskNodeType.Transition));
+                    //     }
+                    // }
+
+                    var portal = GetBestPortalToFollow(_lastTargetPosition);
+                    if (portal != null && !IsInLabyrinth()){
+                        // hideout -> Map || Chamber of Sins A7 -> Map
+                        _tasks.Add(new TaskNode(portal, 200, TaskNodeType.Transition));
+                    } else if (IsInLabyrinth())
                     {
-                        var portalLabel = GetBestPortalToFollow(_lastTargetPosition);
-                        if (portalLabel != null)
+                        // Labyrinth transition
+                        var transition = GetBestPortalToFollow(_lastTargetPosition);
+                        if (transition != null && transition.ItemOnGround.DistancePlayer < 100)
                         {
-                            _tasks.Add(new TaskNode(portalLabel, 200, TaskNodeType.Transition));
+                            _tasks.Add(new TaskNode(transition, 200, TaskNodeType.Transition));
+                        }
+                    } else {
+                        // tp?
+                        var tpButton = GetTpButton(leaderPartyElement);
+                        if(!tpButton.Equals(Vector2.Zero))
+                        {
+                            yield return Mouse.SetCursorPosHuman(tpButton);
+                            yield return new WaitTime(200);
+                            yield return Mouse.LeftClick();
+                            yield return new WaitTime(200);
+                        }
+
+                        var tpConfirmation = GetTpConfirmation();
+                        if (tpConfirmation != null)
+                        {
+                            yield return Mouse.SetCursorPosHuman(tpConfirmation.GetClientRect().Center);
+                            yield return new WaitTime(200);
+                            yield return Mouse.LeftClick();
+                            yield return new WaitTime(1000);
                         }
                     }
+
+
                 }
                 else if (_followTarget != null)
                 {
                     var leaderPos = _followTarget.Pos;
                     var distanceFromLeader = Vector3.Distance(GameController.Player.Pos, leaderPos);
+                    var distanceMoved = Vector3.Distance(_lastTargetPosition, leaderPos);
 
+                    // leader moved very far in 1 frame
                     if (distanceFromLeader >= Settings.ClearPathDistance)
                     {
-                        if (!_tasks.Any() || Vector3.Distance(_tasks.Last().WorldPosition, leaderPos) >= Settings.PathfindingNodeDistance)
+                        var transition2 = GetBestPortalToFollow(_lastTargetPosition);
+                        if (transition2 != null && transition2.ItemOnGround.DistancePlayer < 300)
                         {
+                            _tasks.Add(new TaskNode(transition2, 200, TaskNodeType.Transition));
+                        }
+
+                    }
+                    // we have no path, set us to go to leader pos
+                    else if (_tasks.Count == 0 && distanceMoved < 2000 && distanceFromLeader > 200 && distanceFromLeader < 2000)
+
+                    {
+                        // Add a movement task to the leader's position
+                        _tasks.Add(new TaskNode(leaderPos, Settings.PathfindingNodeDistance));
+                    }
+
+                    else if (_tasks.Count > 0)
+                    {
+                        var distanceToTask = Vector3.Distance(GameController.Player.Pos, _tasks.Last().WorldPosition);
+                        if (distanceToTask >= Settings.PathfindingNodeDistance)
+                        {
+                            // If the last task is too far, we can remove it
                             _tasks.Add(new TaskNode(leaderPos, Settings.PathfindingNodeDistance));
                         }
                     }
-                    else 
+
+                    //leader is far and we have no _tasks, stuck at a transition?
+                    else if (_tasks.Count == 0 && distanceFromLeader > 2000)
                     {
-                        _tasks.RemoveAll(t => t.Type == TaskNodeType.Movement || t.Type == TaskNodeType.Transition);
+                        var transition3 = GetBestPortalToFollow(_lastTargetPosition);
+                        if (transition3 != null && transition3.ItemOnGround.DistancePlayer < 500)
+                        {
+                            _tasks.Add(new TaskNode(transition3, 200, TaskNodeType.Transition));
+                        }
                     }
-                    _lastTargetPosition = leaderPos;
+
+                    else
+                    {
+                        if (_tasks.Count > 0)
+                        {
+							for (var i = _tasks.Count - 1; i >= 0; i--)
+								if (_tasks[i].Type == TaskNodeType.Movement || _tasks[i].Type == TaskNodeType.Transition)
+									_tasks.RemoveAt(i);
+							yield return null;
+                        }
+                        if (Settings.IsCloseFollowEnabled)
+                        {
+                            if (distanceFromLeader >= Settings.PathfindingNodeDistance)
+                            {
+                                // If we are too far from the leader, add a movement task to their position
+                                _tasks.Add(new TaskNode(leaderPos, Settings.PathfindingNodeDistance));
+                            }
+                        }
+                    }
+                    // if (distanceFromLeader >= Settings.ClearPathDistance)
+                    // {
+                    //     if (!_tasks.Any() || Vector3.Distance(_tasks.Last().WorldPosition, leaderPos) >= Settings.PathfindingNodeDistance)
+                    //     {
+                    //         _tasks.Add(new TaskNode(leaderPos, Settings.PathfindingNodeDistance));
+                    //     }
+                    // }
+                    // else 
+                    // {
+                    //     _tasks.RemoveAll(t => t.Type == TaskNodeType.Movement || t.Type == TaskNodeType.Transition);
+                    // }
+					if (leaderPos != null)
+						_lastTargetPosition = leaderPos;
                 }
 
 
@@ -160,19 +253,48 @@ namespace Follower
                     currentTask.AttemptCount++;
 
                     float distanceToTask = Vector3.Distance(GameController.Player.Pos, currentTask.WorldPosition);
+					playerDistanceMoved = Vector3.Distance(GameController.Player.Pos, _lastPlayerPosition);
+
+					//We are using a same map transition and have moved significnatly since last tick. Mark the transition task as done.
+					if (currentTask.Type == TaskNodeType.Transition && 
+					    playerDistanceMoved >= Settings.ClearPathDistance)
+					{
+						_tasks.RemoveAt(0);
+                        _lastPlayerPosition = GameController.Player.Pos;
+						yield return null;
+						continue;
+					}
 
                     switch (currentTask.Type)
                     {
                         case TaskNodeType.Movement:
-                            if (distanceToTask <= currentTask.Bounds * 1.5)
+
+							if (Settings.IsDashEnabled && CheckDashTerrain(currentTask.WorldPosition.WorldToGrid()))
+								yield return null;
+							yield return Mouse.SetCursorPosHuman(WorldToValidScreenPosition(currentTask.WorldPosition));
+							yield return new WaitTime(random.Next(25) + 30);
+							Input.KeyDown(Settings.MovementKey);
+							yield return new WaitTime(random.Next(25) + 30);
+							Input.KeyUp(Settings.MovementKey);
+
+                            if (distanceToTask <= Settings.PathfindingNodeDistance * 1.5)
                             {
                                 _tasks.RemoveAt(0);
                                 continue; // Task done, immediately get the next one.
+                            } else {
+                                currentTask.AttemptCount++;
+                                if (currentTask.AttemptCount > 5){
+                                    var transition4 = GetBestPortalToFollow(_lastTargetPosition);
+									if (transition4 != null && transition4.ItemOnGround.DistancePlayer < 100)
+									{
+										_tasks.RemoveAt(0);
+										_tasks.Add(new TaskNode(transition4,200, TaskNodeType.Transition));
+									}
+                                }
                             }
-                            Input.KeyDown(Settings.MovementKey);
-                            yield return Mouse.SetCursorPosHuman(WorldToValidScreenPosition(currentTask.WorldPosition));
-                            // No extra delay needed. The key is held down.
-                            break;
+							yield return null;
+							yield return null;
+							continue;
 
                         case TaskNodeType.Transition:
                             Input.KeyUp(Settings.MovementKey); // Stop moving
@@ -181,6 +303,24 @@ namespace Follower
                             yield return new WaitTime(250); // A much shorter, non-blind wait.
                             // The logic at the top of the loop will handle success.
                             break;
+
+							currentTask.AttemptCount++;
+							if (currentTask.AttemptCount > 6){
+								while(_tasks?.Count > 0){
+									_tasks.RemoveAt(0);
+								}
+								var transition2 = GetBestPortalToFollow(_lastTargetPosition);
+								if (transition2 != null && transition2.ItemOnGround.DistancePlayer < 100)
+								{
+									_tasks.Add(new TaskNode(transition2,200, TaskNodeType.Transition));
+								}
+								yield return null;
+								continue;
+							} else
+							{
+								yield return null;
+								continue;
+							}
                         
                         // Add other task types (Loot, etc.) here
                     }
@@ -462,7 +602,7 @@ namespace Follower
 
             Graphics.DrawText($"Follower: {Settings.IsFollowEnabled.Value}", new Vector2(500, 120), SharpDX.Color.White);
             Graphics.DrawText($"Leader '{Settings.LeaderName.Value}': {leaderStatus}", new Vector2(500, 140), SharpDX.Color.LawnGreen);
-            Graphics.DrawText($"Tasks: {_tasks.Count}", new Vector2(500, 160), SharpDX.Color.White);
+            Graphics.DrawText($"_tasks: {_tasks.Count}", new Vector2(500, 160), SharpDX.Color.White);
 
             // --- START OF NEW DEBUG SECTION ---
 

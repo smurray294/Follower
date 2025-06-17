@@ -1,3 +1,20 @@
 
 Follower.txt
 Errors.txt
+obj/Debug/net8.0-windows/win-x64/.NETCoreApp,Version=v8.0.AssemblyAttributes.cs
+obj/Debug/net8.0-windows/win-x64/Follower.AssemblyInfo.cs
+obj/Debug/net8.0-windows/win-x64/Follower.AssemblyInfoInputs.cache
+obj/Debug/net8.0-windows/win-x64/Follower.assets.cache
+obj/Debug/net8.0-windows/win-x64/Follower.csproj.AssemblyReference.cache
+obj/Debug/net8.0-windows/win-x64/Follower.csproj.CoreCompileInputs.cache
+obj/Debug/net8.0-windows/win-x64/Follower.csproj.FileListAbsolute.txt
+obj/Debug/net8.0-windows/win-x64/Follower.dll
+obj/Debug/net8.0-windows/win-x64/Follower.GeneratedMSBuildEditorConfig.editorconfig
+obj/Debug/net8.0-windows/win-x64/Follower.sourcelink.json
+obj/Debug/net8.0-windows/win-x64/ref/Follower.dll
+obj/Debug/net8.0-windows/win-x64/refint/Follower.dll
+obj/Follower.csproj.nuget.dgspec.json
+obj/Follower.csproj.nuget.g.props
+obj/Follower.csproj.nuget.g.targets
+obj/project.assets.json
+obj/project.nuget.cache
