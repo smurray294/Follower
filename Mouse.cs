@@ -26,9 +26,7 @@ namespace Follower
         [DllImport("user32.dll")]
         public static extern void mouse_event(int dwFlags, int dx, int dy, int cButtons, int dwExtraInfo);
 
-        public const int MOUSEEVENTF_LEFTDOWN = 0x02;
-        public const int MOUSEEVENTF_LEFTUP = 0x04;
-
+        [DllImport("user32.dll")]
         public static void SetCursorPos(Vector2 pos)
         {
             SetCursorPos((int)pos.X, (int)pos.Y);
