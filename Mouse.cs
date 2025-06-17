@@ -21,7 +21,6 @@ namespace Follower
         public const int MouseEventWheel = 0x800;
 
         public static float speedMouse = 1;
-        private static extern bool SetCursorPos(int x, int y);
 
         [DllImport("user32.dll")]
         private static extern void mouse_event(int dwFlags, int dx, int dy, int cButtons, int dwExtraInfo);
