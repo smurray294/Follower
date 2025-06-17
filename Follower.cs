@@ -163,7 +163,7 @@ namespace Follower
                 if (!GameController.Player.IsAlive || GameController.IsLoading)
                 {
                     ResetState();
-                    yield return new WaitTime(75); // Wait if we're in a state where we can't act
+                    yield return new WaitTime(500); // Wait if we're in a state where we can't act
                     continue;
                 }
 
@@ -188,9 +188,8 @@ namespace Follower
                 // This logic is mostly fine, we just let it run without extra delays.
                 _followTarget = GetFollowingTarget();
                 var leaderPartyElement = GetLeaderPartyElement();
-
                 // (Your existing logic for creating _tasks when leader is far/near goes here. It doesn't need yields.)
-                if (_followTarget == null && leaderPartyElement != null && leaderPartyElement.ZoneName != GameController.Game.IngameState.Data.CurrentArea.Name)
+                if (_followTarget == null && leaderPartyElement != null && leaderPartyElement.ZoneName != GameController.Game.IngameState.Data.CurrentArea.Name && leaderPartyElement.ZoneName != null)
                 {
                     // if (!_tasks.Any()) 
                     // {
