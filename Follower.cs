@@ -98,97 +98,69 @@ namespace Follower
         {
             while (true)
             {
-                // Main bot loop, runs continuously while the coroutine is active.
-                yield return new WaitTime(100); // Small delay between logic cycles
-
+                // Basic checks and pause
                 if (!GameController.Player.IsAlive || GameController.IsLoading)
                 {
-                    continue; // Skip this cycle if dead or loading
+                    yield return new WaitTime(250); // Longer wait if loading/dead
+                    continue;
                 }
 
-                // --- Main Decision-Making Logic (from AutoPilot) ---
+                // --- Priority #1: Check if a transition just succeeded ---
+                var playerDistanceMoved = Vector3.Distance(GameController.Player.Pos, _lastPlayerPosition);
+                if (_tasks.Any() && _tasks.First().Type == TaskNodeType.Transition && playerDistanceMoved > 150)
+                {
+                    LogMessage("Transition successful, resetting state.", 3, SharpDX.Color.LawnGreen);
+                    ResetState(); 
+                    yield return new WaitTime(500); // Grace period after loading
+                    continue;
+                }
 
+                // --- Priority #2: Decision Making (Path Building) ---
                 _followTarget = GetFollowingTarget();
                 var leaderPartyElement = GetLeaderPartyElement();
 
                 // Case 1: Leader is in another zone
                 if (_followTarget == null && leaderPartyElement != null && leaderPartyElement.ZoneName != GameController.Game.IngameState.Data.CurrentArea.Name)
                 {
-                    if (_tasks.Any()) continue; // If we already have a task (e.g., transition), let it finish
-
-                    // Logic to find a way to the leader
-                    var portalLabel = GetBestPortalToFollow();
-                    if (_lastTargetPosition != Vector3.Zero && portalLabel != null && Vector3.Distance(_lastTargetPosition, portalLabel.ItemOnGround.Pos) < Settings.ClearPathDistance)
+                    if (!_tasks.Any()) // Only act if we have no current task
                     {
-                        _tasks.Add(new TaskNode(portalLabel, Settings.PathfindingNodeDistance, TaskNodeType.Transition));
-                    }
-                    else
-                    {
-                        // Fallback to TP
-                        var tpConfirmation = GetTpConfirmation();
-                        if (tpConfirmation != null)
+                        var portalLabel = GetBestPortalToFollow(_lastTargetPosition);
+                        if (portalLabel != null)
                         {
-                            yield return Mouse.SetCursorPosAndLeftClickHuman(tpConfirmation.GetClientRect().Center, 50);
-                            yield return new WaitTime(2000); // Long wait after TP
+                            _tasks.Add(new TaskNode(portalLabel, 200, TaskNodeType.Transition));
                         }
                         else
                         {
-                            var tpButton = GetTpButton(leaderPartyElement);
-                            if (tpButton != Vector2.Zero)
-                            {
-                                yield return Mouse.SetCursorPosAndLeftClickHuman(tpButton, 50);
-                            }
+                            // Your TP logic can go here as a fallback
                         }
                     }
                 }
                 // Case 2: Leader is in the same zone
                 else if (_followTarget != null)
                 {
-                    var playerPos = GameController.Player.Pos;
                     var leaderPos = _followTarget.Pos;
-                    var distanceFromLeader = Vector3.Distance(playerPos, leaderPos);
+                    var distanceFromLeader = Vector3.Distance(GameController.Player.Pos, leaderPos);
 
-                    // A: We are far from the leader, so we need to generate pathing tasks.
-                    if (distanceFromLeader >= Settings.ClearPathDistance)
+                    if (distanceFromLeader >= Settings.ClearPathDistance) // Far away: Build path
                     {
                         if (!_tasks.Any() || Vector3.Distance(_tasks.Last().WorldPosition, leaderPos) >= Settings.PathfindingNodeDistance)
                         {
-                            // Add a new node to the path if we have no tasks or if the leader has moved far enough.
                             _tasks.Add(new TaskNode(leaderPos, Settings.PathfindingNodeDistance));
                         }
                     }
-                    // B: We are close to the leader. Clear movement tasks and look for other actions.
-                    else
+                    else // Close: Clear movement tasks and look for other things to do
                     {
-                        _tasks.RemoveAll(t => t.Type == TaskNodeType.Movement);
-                        if (!_tasks.Any()) // Only look for new actions if the queue is empty
-                        {
-                            if (Settings.IsCloseFollowEnabled && distanceFromLeader > Settings.PathfindingNodeDistance)
-                            {
-                                _tasks.Add(new TaskNode(leaderPos, Settings.PathfindingNodeDistance)); // Close follow task
-                            }
-                            else if (!_hasUsedWp)
-                            {
-                                // Waypoint logic
-                            }
-                            else
-                            {
-                                // Looting logic
-                            }
-                        }
+                        _tasks.RemoveAll(t => t.Type == TaskNodeType.Movement || t.Type == TaskNodeType.Transition);
+                        // Future: Add logic for looting, waypoints, etc. here if _tasks is empty
                     }
                     _lastTargetPosition = leaderPos;
                 }
 
-                // --- Task Execution Logic ---
+                // --- Priority #3: Task Execution ---
                 if (_tasks.Any())
                 {
                     var currentTask = _tasks.First();
-                    if (currentTask.AttemptCount > 5)
-                    {
-                        _tasks.RemoveAt(0); // Failsafe for stuck tasks
-                        continue;
-                    }
+                    if (currentTask.AttemptCount > 6) { _tasks.RemoveAt(0); continue; }
                     currentTask.AttemptCount++;
 
                     float distanceToTask = Vector3.Distance(GameController.Player.Pos, currentTask.WorldPosition);
@@ -198,40 +170,26 @@ namespace Follower
                         case TaskNodeType.Movement:
                             if (distanceToTask <= currentTask.Bounds)
                             {
-                                _tasks.RemoveAt(0); // Task complete
+                                _tasks.RemoveAt(0);
                                 continue;
                             }
-                            // Move towards the task
-                            yield return Mouse.SetCursorPosHuman(WorldToValidScreenPosition(currentTask.WorldPosition));
                             Input.KeyDown(Settings.MovementKey);
-                            yield return new WaitTime(50 + random.Next(50));
-                            Input.KeyUp(Settings.MovementKey);
+                            yield return Mouse.SetCursorPosHuman(WorldToValidScreenPosition(currentTask.WorldPosition));
                             break;
 
                         case TaskNodeType.Transition:
-                            if (currentTask.LabelOnGround != null && currentTask.LabelOnGround.IsVisible)
-                            {
-                                yield return Mouse.SetCursorPosAndLeftClickHuman(currentTask.LabelOnGround.Label.GetClientRect().Center, 100);
-                                yield return new WaitTime(2000); // Wait for loading screen
-                            }
-                            else
-                            {
-                                // If label isn't visible, move towards the location
-                                if (distanceToTask > 150)
-                                {
-                                    yield return Mouse.SetCursorPosHuman(WorldToValidScreenPosition(currentTask.WorldPosition));
-                                    Input.KeyDown(Settings.MovementKey);
-                                    yield return new WaitTime(50 + random.Next(50));
-                                    Input.KeyUp(Settings.MovementKey);
-                                }
-                                else
-                                {
-                                    _tasks.RemoveAt(0); // Close enough, but can't see it. Abandon task.
-                                }
-                            }
+                            Input.KeyUp(Settings.MovementKey); // Stop moving before clicking
+                            yield return new WaitTime(150);
+                            yield return Mouse.SetCursorPosAndLeftClickHuman(currentTask.LabelOnGround.Label.GetClientRect().Center, 100);
+                            // DO NOT wait here. Let the check at the top of the loop handle success.
+                            yield return new WaitTime(500); // Just a small delay before we check again
                             break;
                     }
                 }
+
+                // Final housekeeping for the loop
+                _lastPlayerPosition = GameController.Player.Pos;
+                yield return new WaitTime(100); // Standard delay for each full logic cycle
             }
         }
 
