@@ -44,7 +44,7 @@ namespace Follower
         private Thread _clientThread;
         private volatile string _receivedCommand = null;
 
-
+        private const int Delay = 45;
 
         public override bool Initialise()
         {
@@ -176,6 +176,12 @@ namespace Follower
                     if (localFollowTarget == null || Vector3.Distance(GameController.Player.Pos, localFollowTarget.Pos) > 300)
                     {
                         // We're either too far away or can't see the leader.
+                        continue; // Skip to the next skill.
+                    }
+
+                    if (!Gcd())
+                    {
+                        // If we are still in the global cooldown, skip this skill.
                         continue; // Skip to the next skill.
                     }
 
@@ -533,6 +539,11 @@ namespace Follower
         // --- They do not need to be changed. ---
 
         // Your existing Render method goes here, no changes needed.
+
+        public bool Gcd()
+        {
+            return (DateTime.Now - lastTimeAny).TotalMilliseconds > Delay;
+        }
 
         // --- Command System Logic ---
         private void ProcessCommands()
