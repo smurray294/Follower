@@ -8,6 +8,7 @@ using System.Net.Sockets;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Windows.Forms;
 using System.Drawing;
 using ExileCore;
 using ExileCore.PoEMemory;
@@ -34,6 +35,8 @@ namespace Follower
         private int _numRows, _numCols;
         private byte[,] _tiles;
 
+        private readonly List<Skill> _skills = new List<Skill>();
+
         // --- Coroutine and Command System ---
         private Coroutine _botCoroutine;
         private Thread _clientThread;
@@ -56,6 +59,14 @@ namespace Follower
             _clientThread = new Thread(StartClient);
             _clientThread.IsBackground = true;
             _clientThread.Start();
+
+            // --- NEW: Define our skills here ---
+            _skills.Add(new Skill 
+            {
+                Name = "Enduring Cry",
+                Key = Keys.Q,      // Change this to whatever key you use for Enduring Cry
+                Cooldown = 4.0f,   // The 4-second cooldown you mentioned
+            });
 
             return true;
         }
@@ -91,6 +102,72 @@ namespace Follower
                 _botCoroutine.Done();
             }
 
+            // Skill usage
+
+            if (Settings.IsFollowEnabled && _botCoroutine != null && !_botCoroutine.IsDone && GameController.Player.IsAlive)
+            {
+
+            // --- NEW: The Area Check Gatekeeper ---
+                var currentArea = GameController.Area.CurrentArea;
+
+                // 1. Check if it's a Town or Hideout. This is the fastest check.
+                if (currentArea.IsTown || currentArea.IsHideout)
+                {
+                    return null; // Exit skill logic immediately
+                }
+
+                // 2. Check against our custom blacklist from settings.
+                // var blockedZones = Settings.DisabledSkillZones.Value.Split(',')
+                //                             .Select(s => s.Trim()) // Trim whitespace for safety
+                //                             .ToList();
+
+                // if (blockedZones.Contains(currentArea.Name, StringComparer.OrdinalIgnoreCase))
+                // {
+                //     return null; // This zone is on our blacklist, exit skill logic.
+                // }
+
+                // --- End of New Gatekeeper Logic ---
+
+                // This prevents casting while moving, looting, or doing another animation.
+                var actor = GameController.Player.GetComponent<Actor>();
+                if (actor.Action.HasFlag(ActionFlags.UsingAbility))
+                {
+                    return null; // Don't try to cast if we're already busy.
+                }
+                
+                // Go through our list of skills in order of priority.
+                foreach (var skill in _skills)
+                {
+                    // --- The Checklist ---
+
+                    // 1. Is the skill on cooldown?
+                    if (DateTime.Now < skill.NextUseTime)
+                    {
+                        continue; // Skip to the next skill.
+                    }
+
+                    // 2. Is the leader visible and are we close enough? (For War Cry)
+                    if (_followTarget == null || Vector3.Distance(GameController.Player.Pos, _followTarget.Pos) > Settings.ClearPathDistance*1.2)
+                    {
+                        // We're either too far away or can't see the leader.
+                        continue; // Skip to the next skill.
+                    }
+
+                    // --- Action Phase ---
+                    // If we passed all checks, it's time to cast!
+                    LogMessage($"Casting skill: {skill.Name}", 3, SharpDX.Color.LawnGreen);
+                    
+                    Input.KeyPress(skill.Key);
+                    
+                    // Update the cooldown timer.
+                    skill.NextUseTime = DateTime.Now.AddSeconds(skill.Cooldown);
+
+                    // IMPORTANT: We only cast ONE skill per tick.
+                    // Break the loop so we can re-evaluate priorities on the next frame.
+                    break;
+                }
+            }
+
             return null; // The main logic is no longer here.
         }
 
@@ -114,8 +191,8 @@ namespace Follower
             // --- THIS IS THE CRITICAL CHANGE ---
             // We now use StartsWith() to find any monster that fits the pattern.
             var mercenaryMonster = GameController.EntityListWrapper.Entities
-                                                .FirstOrDefault(m => 
-                                                        m.Type == EntityType.Monster && 
+                                                .FirstOrDefault(m =>
+                                                        m.Type == EntityType.Monster &&
                                                         m.IsAlive &&
                                                         m.Metadata.StartsWith(MercenaryBasePath, StringComparison.Ordinal));
 
@@ -124,7 +201,7 @@ namespace Follower
                 LogError("Could not find any mercenary monster entity in the area.", 5);
                 yield break;
             }
-            
+
             LogMessage($"Found mercenary: {mercenaryMonster.Metadata}", 3);
 
             // The rest of the logic remains the same...
@@ -136,7 +213,7 @@ namespace Follower
             var optInButton = allUiElements.FirstOrDefault(e =>
                                     e.IsVisible &&
                                     e.Text != null &&
-                                    e.Text.Equals("Opt-In", StringComparison.OrdinalIgnoreCase) && 
+                                    e.Text.Equals("Opt-In", StringComparison.OrdinalIgnoreCase) &&
                                     Vector2.Distance(e.GetClientRect().Center, monsterScreenPos) < searchRadius);
 
             if (optInButton != null)
@@ -374,6 +451,16 @@ namespace Follower
                             continue;
 
                         case TaskNodeType.Transition:
+
+                            // --- NEW VALIDATION STEP ---
+                            // Before we act, is our target portal label still valid and visible?
+                            if (currentTask.LabelOnGround == null || !currentTask.LabelOnGround.IsVisible)
+                            {
+                                LogMessage("Target portal is gone. Clearing task to find a new one.", 3, SharpDX.Color.Yellow);
+                                _tasks.RemoveAt(0); // Invalidate the stale task
+                                continue;           // Immediately restart the loop to find a new, valid portal
+                            }
+
                             Input.KeyUp(Settings.MovementKey); // Stop moving
                             yield return new WaitTime(50); // Tiny pause to ensure we've stopped.
                             yield return Mouse.SetCursorPosAndLeftClickHuman(currentTask.LabelOnGround.Label.GetClientRect().Center, 100);
@@ -471,41 +558,44 @@ namespace Follower
 
         private LabelOnGround GetBestPortalToFollow(PartyElementWindow leaderPartyElement)
         {
-	        try
-	        {
-				var currentZoneName = Instance.GameController?.Area.CurrentArea.DisplayName;
-				if(leaderPartyElement.ZoneName.Equals(currentZoneName) || (!leaderPartyElement.ZoneName.Equals(currentZoneName) && ((bool)Instance?.GameController?.Area?.CurrentArea?.IsHideout || (IsInLabyrinth())))) // TODO: or is chamber of sins a7 or is epilogue
-				{
-					if((IsInLabyrinth())){
-						var portalLabels =
-						Instance.GameController?.Game?.IngameState?.IngameUi?.ItemsOnGroundLabels.Where(x =>
-							x != null && x.IsVisible && x.Label != null && x.Label.IsValid && x.Label.IsVisible && x.ItemOnGround != null)
-							.OrderBy(x => Vector3.Distance(_lastPlayerPosition, x.ItemOnGround.Pos)).ToList();
+            try
+            {
+                var currentZoneName = Instance.GameController?.Area.CurrentArea.DisplayName;
+                if (leaderPartyElement.ZoneName.Equals(currentZoneName) || (!leaderPartyElement.ZoneName.Equals(currentZoneName) && ((bool)Instance?.GameController?.Area?.CurrentArea?.IsHideout || (IsInLabyrinth())))) // TODO: or is chamber of sins a7 or is epilogue
+                {
+                    if ((IsInLabyrinth()))
+                    {
+                        var portalLabels =
+                        Instance.GameController?.Game?.IngameState?.IngameUi?.ItemsOnGroundLabels.Where(x =>
+                            x != null && x.IsVisible && x.Label != null && x.Label.IsValid && x.Label.IsVisible && x.ItemOnGround != null)
+                            .OrderBy(x => Vector3.Distance(_lastPlayerPosition, x.ItemOnGround.Pos)).ToList();
 
-						return Instance?.GameController?.Area?.CurrentArea?.IsHideout != null && (bool)Instance.GameController?.Area?.CurrentArea?.IsHideout
-							? portalLabels?[random.Next(portalLabels.Count)]
-							: portalLabels?.FirstOrDefault();
-					} else {
-						var portalLabels =
-							Instance.GameController?.Game?.IngameState?.IngameUi?.ItemsOnGroundLabels.Where(x =>
-							x != null && x.IsVisible && x.Label != null && x.Label.IsValid && x.Label.IsVisible && x.ItemOnGround != null && 
-							(x.ItemOnGround.Metadata.ToLower().Contains("areatransition") || x.ItemOnGround.Metadata.ToLower().Contains("portal") || x.ItemOnGround.Metadata.ToLower().Contains("woodsentrancetransition") ))
-							.OrderBy(x => Vector3.Distance(_lastPlayerPosition, x.ItemOnGround.Pos)).ToList();
+                        return Instance?.GameController?.Area?.CurrentArea?.IsHideout != null && (bool)Instance.GameController?.Area?.CurrentArea?.IsHideout
+                            ? portalLabels?[random.Next(portalLabels.Count)]
+                            : portalLabels?.FirstOrDefault();
+                    }
+                    else
+                    {
+                        var portalLabels =
+                            Instance.GameController?.Game?.IngameState?.IngameUi?.ItemsOnGroundLabels.Where(x =>
+                            x != null && x.IsVisible && x.Label != null && x.Label.IsValid && x.Label.IsVisible && x.ItemOnGround != null &&
+                            (x.ItemOnGround.Metadata.ToLower().Contains("areatransition") || x.ItemOnGround.Metadata.ToLower().Contains("portal") || x.ItemOnGround.Metadata.ToLower().Contains("woodsentrancetransition")))
+                            .OrderBy(x => Vector3.Distance(_lastPlayerPosition, x.ItemOnGround.Pos)).ToList();
 
-						//debug1 = portalLabels?.FirstOrDefault().ItemOnGround.Metadata.ToLower();
+                        //debug1 = portalLabels?.FirstOrDefault().ItemOnGround.Metadata.ToLower();
 
-						return Instance?.GameController?.Area?.CurrentArea?.IsHideout != null && (bool)Instance.GameController?.Area?.CurrentArea?.IsHideout
-							? portalLabels?[random.Next(portalLabels.Count)]
-							: portalLabels?.FirstOrDefault();
-					}
+                        return Instance?.GameController?.Area?.CurrentArea?.IsHideout != null && (bool)Instance.GameController?.Area?.CurrentArea?.IsHideout
+                            ? portalLabels?[random.Next(portalLabels.Count)]
+                            : portalLabels?.FirstOrDefault();
+                    }
 
-				}
-				return null;
-	        }
-	        catch
-	        {
-		        return null;
-	        }
+                }
+                return null;
+            }
+            catch
+            {
+                return null;
+            }
         }
         // {
         //     try
@@ -531,38 +621,38 @@ namespace Follower
         //     catch { return null; }
         // }
 
-		private Vector2 GetTpButton(PartyElementWindow leaderPartyElement)
-		{
-			try
-			{
-				var windowOffset = Follower.Instance.GameController.Window.GetWindowRectangle().TopLeft;
-				var elemCenter = (Vector2) leaderPartyElement?.TpButton?.GetClientRectCache.Center;
-				var finalPos = new Vector2(elemCenter.X + windowOffset.X, elemCenter.Y + windowOffset.Y);
-				
-				return finalPos;
-			}
-			catch
-			{
-				return Vector2.Zero;
-			}
-		}
+        private Vector2 GetTpButton(PartyElementWindow leaderPartyElement)
+        {
+            try
+            {
+                var windowOffset = Follower.Instance.GameController.Window.GetWindowRectangle().TopLeft;
+                var elemCenter = (Vector2)leaderPartyElement?.TpButton?.GetClientRectCache.Center;
+                var finalPos = new Vector2(elemCenter.X + windowOffset.X, elemCenter.Y + windowOffset.Y);
 
-		private Element GetTpConfirmation()
-		{
-			try
-			{
-				var ui = Follower.Instance.GameController?.IngameState?.IngameUi?.PopUpWindow;
+                return finalPos;
+            }
+            catch
+            {
+                return Vector2.Zero;
+            }
+        }
 
-				if (ui.Children[0].Children[0].Children[0].Text.Equals("Are you sure you want to teleport to this player's location?"))
-					return ui.Children[0].Children[0].Children[3].Children[0];
-				
-				return null;
-			}
-			catch
-			{
-				return null;
-			}
-		}
+        private Element GetTpConfirmation()
+        {
+            try
+            {
+                var ui = Follower.Instance.GameController?.IngameState?.IngameUi?.PopUpWindow;
+
+                if (ui.Children[0].Children[0].Children[0].Text.Equals("Are you sure you want to teleport to this player's location?"))
+                    return ui.Children[0].Children[0].Children[3].Children[0];
+
+                return null;
+            }
+            catch
+            {
+                return null;
+            }
+        }
 
         private bool CheckDashTerrain(Vector2 targetPosition)
         {
@@ -930,4 +1020,14 @@ namespace Follower
 
         #endregion
     }
+    
+    // Place this at the bottom of your Follower.cs file, inside the namespace
+    public class Skill
+    {
+        public string Name { get; set; }
+        public Keys Key { get; set; }
+        public float Cooldown { get; set; } // Cooldown in seconds
+        public DateTime NextUseTime { get; set; } = DateTime.Now;
+    }
+
 }
