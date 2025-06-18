@@ -43,8 +43,9 @@ namespace Follower
         private Coroutine _botCoroutine;
         private Thread _clientThread;
         private volatile string _receivedCommand = null;
+        private volatile bool _lootRequested = false;
 
-        private const int Delay = 45;
+        private const int Delay = 75;
 
         public override bool Initialise()
         {
@@ -126,6 +127,8 @@ namespace Follower
                 _botCoroutine.Done();
                 Input.KeyUp(Settings.MovementKey);
             }
+
+
 
             // Skill usage
 
@@ -282,6 +285,18 @@ namespace Follower
                     _mercClickRequested = false; // Reset the flag immediately
                     yield return ClickMercButton();
                     continue; // Action taken, restart the loop to re-evaluate everything
+                }
+
+                if (_lootRequested)
+                {
+                    _lootRequested = false; // Reset the flag immediately to prevent re-triggering
+
+                    // Pause the main follow logic and hand over control to the looting coroutine.
+                    yield return HandleLooting();
+
+                    // After looting is finished, restart the main loop from the top
+                    // to re-evaluate the game state.
+                    continue; 
                 }
 
                 var playerDistanceMoved = Vector3.Distance(GameController.Player.Pos, _lastPlayerPosition);
@@ -540,6 +555,55 @@ namespace Follower
 
         // Your existing Render method goes here, no changes needed.
 
+        private IEnumerator HandleLooting()
+        {
+            // Make sure we stop moving before we start looting.
+            Input.KeyUp(Settings.MovementKey);
+            yield return new WaitTime(100);
+
+            LogMessage("Scanning for visible items to loot...", 3);
+
+            // This is the range within which the bot will attempt to loot.
+            const float LootRange = 500f;
+
+            // Get a list of all VISIBLE item labels on the ground within loot range.
+            // This relies on your custom, minimalist loot filter.
+            var itemsToLoot = GameController.IngameState.IngameUi.ItemsOnGroundLabelsVisible
+                                .Where(label => label.ItemOnGround.DistancePlayer < LootRange)
+                                .OrderBy(label => label.ItemOnGround.DistancePlayer) // Loot closest first
+                                .ToList();
+
+            if (!itemsToLoot.Any())
+            {
+                LogMessage("No visible items found in range.", 3, SharpDX.Color.Yellow);
+                yield break; // Exit the coroutine immediately
+            }
+
+            LogMessage($"Found {itemsToLoot.Count} items to loot. Starting pickup loop.", 3, SharpDX.Color.LawnGreen);
+
+            // Loop through each found item and pick it up sequentially.
+            foreach (var label in itemsToLoot)
+            {
+                // Double-check the label is still valid before we act
+                if (!label.IsVisible || !label.ItemOnGround.IsTargetable)
+                {
+                    continue; // This item was already picked up, skip to the next one
+                }
+
+                LogMessage($"Looting {label.ItemOnGround.GetComponent<WorldItem>()?.ItemEntity.GetComponent<Base>()?.Name}", 2);
+
+                // Move the mouse to the item's label
+                yield return Mouse.SetCursorPosHuman(label.Label.GetClientRect().Center, false);
+                yield return new WaitTime(50); // Small pause for realism
+
+
+                // Wait a moment for the pickup animation to complete before moving to the next item
+                yield return new WaitTime(300);
+            }
+
+            LogMessage("Looting complete.", 3);
+        }
+
         public bool Gcd()
         {
             return (DateTime.Now - lastTimeAny).TotalMilliseconds > Delay;
@@ -566,6 +630,11 @@ namespace Follower
                 {
                     LogMessage("Mercenary click command received!", 3, SharpDX.Color.Aqua);
                     _mercClickRequested = true;
+                }
+                else if (commandToProcess == "LOOT_NEARBY")
+                {
+                    LogMessage("Loot command received!", 3, SharpDX.Color.Aqua);
+                    _lootRequested = true;
                 }
             }
         }
