@@ -63,12 +63,33 @@ namespace Follower
             _clientThread.Start();
 
             // --- NEW: Define our skills here ---
-            _skills.Add(new Skill 
+
+            If (Settings.CryBot)
             {
-                Name = "Enduring Cry",
-                Key = Keys.Q,      // Change this to whatever key you use for Enduring Cry
-                Cooldown = 4.2f,   // The 4-second cooldown you mentioned
-            });
+                _skills.Add(new Skill 
+                {
+                    Name = "Enduring Cry",
+                    Key = Keys.Q,      // Change this to whatever key you use for Enduring Cry
+                    Cooldown = 4.2f,   // The 4-second cooldown you mentioned
+                    UseMode = SkillUseMode.OnCooldownInRange
+                });
+
+                _skills.Add(new Skill 
+                {
+                    Name = "Ancestral Cry",
+                    Key = Keys.W,      // Change this to whatever key you use for Enduring Cry
+                    Cooldown = 4.2f,   // The 4-second cooldown you mentioned
+                    UseMode = SkillUseMode.OnCooldownInRange
+                });
+
+                _skills.Add(new Skill 
+                {
+                    Name = "Battlemage's Cry",
+                    Key = Keys.R,      // Change this to whatever key you use for Enduring Cry
+                    Cooldown = 4.2f,   // The 4-second cooldown you mentioned
+                    UseMode = SkillUseMode.OnCooldownInRange
+                });
+            }
 
             return true;
         }
@@ -152,7 +173,7 @@ namespace Follower
                     }
 
                     // 2. Is the leader visible and are we close enough? (For War Cry)
-                    if (localFollowTarget == null || Vector3.Distance(GameController.Player.Pos, localFollowTarget.Pos) > 250)
+                    if (localFollowTarget == null || Vector3.Distance(GameController.Player.Pos, localFollowTarget.Pos) > 300)
                     {
                         // We're either too far away or can't see the leader.
                         continue; // Skip to the next skill.
@@ -1026,6 +1047,14 @@ namespace Follower
         #endregion
     }
     
+    // Add this enum above your Skill class
+    public enum SkillUseMode
+    {
+        OnCooldown,         // Use whenever it's off cooldown (e.g., for a temporary buff like Blood Rage)
+        OnCooldownInRange,  // Use whenever it's off cooldown, BUT only if close to the leader (for War Cries)
+        OnMonstersInRange   // Use when a certain number of monsters are nearby (for attacks or curses)
+    }
+
     // Place this at the bottom of your Follower.cs file, inside the namespace
     public class Skill
     {
@@ -1033,6 +1062,7 @@ namespace Follower
         public Keys Key { get; set; }
         public float Cooldown { get; set; } // Cooldown in seconds
         public DateTime NextUseTime { get; set; } = DateTime.Now;
+        public SkillUseMode UseMode { get; set; }
     }
 
 }

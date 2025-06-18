@@ -19,4 +19,9 @@ public class FollowerSettings : ISettings
     [Menu("Allow Dash")] public ToggleNode IsDashEnabled { get; set; } = new ToggleNode(true);
     [Menu("Dash Key")] public HotkeyNode DashKey { get; set; } = Keys.W;
     [Menu("Follow Close")] public ToggleNode IsCloseFollowEnabled { get; set; } = new ToggleNode(false);
+    [Menu("CryBot")] public ToggleNode CryBot { get; set; } = new ToggleNode(false);
+    [Menu("ManaGuardian")] public ToggleNode ManaGuardian { get; set; } = new ToggleNode(false);
+    [Menu("Culler")] public ToggleNode Culler { get; set; } = new ToggleNode(false);
+    [Menu("Aurabot")] public ToggleNode Aurabot { get; set; } = new ToggleNode(false);
+    [Menu("Druggery")] public ToggleNode Druggery { get; set; } = new ToggleNode(false);
 }
