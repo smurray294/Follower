@@ -596,6 +596,8 @@ namespace Follower
                 yield return Mouse.SetCursorPosHuman(label.Label.GetClientRect().Center, false);
                 yield return new WaitTime(50); // Small pause for realism
 
+                yield return Mouse.LeftClick();
+
 
                 // Wait a moment for the pickup animation to complete before moving to the next item
                 yield return new WaitTime(300);
