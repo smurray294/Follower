@@ -35,6 +35,8 @@ namespace Follower
         private int _numRows, _numCols;
         private byte[,] _tiles;
 
+        internal DateTime lastTimeAny;
+
         private readonly List<Skill> _skills = new List<Skill>();
 
         // --- Coroutine and Command System ---
@@ -157,7 +159,7 @@ namespace Follower
                     // If we passed all checks, it's time to cast!
                     LogMessage($"Casting skill: {skill.Name}", 3, SharpDX.Color.LawnGreen);
                     
-                    Input.KeyPress(skill.Key);
+                    Keyboard.KeyPress(skill.Key);
                     
                     // Update the cooldown timer.
                     skill.NextUseTime = DateTime.Now.AddSeconds(skill.Cooldown);
