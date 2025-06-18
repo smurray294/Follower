@@ -67,7 +67,7 @@ namespace Follower
             {
                 Name = "Enduring Cry",
                 Key = Keys.Q,      // Change this to whatever key you use for Enduring Cry
-                Cooldown = 4.0f,   // The 4-second cooldown you mentioned
+                Cooldown = 4.2f,   // The 4-second cooldown you mentioned
             });
 
             return true;
@@ -152,7 +152,7 @@ namespace Follower
                     }
 
                     // 2. Is the leader visible and are we close enough? (For War Cry)
-                    if (localFollowTarget == null || Vector3.Distance(GameController.Player.Pos, localFollowTarget.Pos) > Settings.ClearPathDistance*1.2)
+                    if (localFollowTarget == null || Vector3.Distance(GameController.Player.Pos, localFollowTarget.Pos) > 250)
                     {
                         // We're either too far away or can't see the leader.
                         continue; // Skip to the next skill.
