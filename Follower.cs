@@ -100,8 +100,10 @@ namespace Follower
 
             if (!Settings.IsFollowEnabled && _botCoroutine != null && !_botCoroutine.IsDone)
             {
+
                 LogMessage("Stopping Bot Coroutine...", 3, SharpDX.Color.Red);
                 _botCoroutine.Done();
+                Input.KeyUp(Settings.MovementKey);
             }
 
             // Skill usage
@@ -111,6 +113,7 @@ namespace Follower
 
             // --- NEW: The Area Check Gatekeeper ---
                 var currentArea = GameController.Area.CurrentArea;
+                var localFollowTarget = GetFollowingTarget();
 
                 // 1. Check if it's a Town or Hideout. This is the fastest check.
                 if (currentArea.IsTown || currentArea.IsHideout)
@@ -149,7 +152,7 @@ namespace Follower
                     }
 
                     // 2. Is the leader visible and are we close enough? (For War Cry)
-                    if (_followTarget == null || Vector3.Distance(GameController.Player.Pos, _followTarget.Pos) > Settings.ClearPathDistance*1.2)
+                    if (localFollowTarget == null || Vector3.Distance(GameController.Player.Pos, localFollowTarget.Pos) > Settings.ClearPathDistance*1.2)
                     {
                         // We're either too far away or can't see the leader.
                         continue; // Skip to the next skill.
