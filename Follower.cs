@@ -64,7 +64,7 @@ namespace Follower
 
             // --- NEW: Define our skills here ---
 
-            If (Settings.CryBot)
+            if (Settings.CryBot)
             {
                 _skills.Add(new Skill 
                 {
