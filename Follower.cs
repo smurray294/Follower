@@ -148,33 +148,19 @@ namespace Follower
                 Input.KeyUp(Settings.MovementKey);
             }
 
-            if (Settings.AutoLevelGems.Value)
+            if (Settings.AutoLevelGems.Value && !_isLevelingGem)
             {
-                // Don't do anything if we are already in the middle of leveling a gem.
-                if (_isLevelingGem)
-                {
-                    return null;
-                }
-
                 var gemsToLvlUpElements = GetLevelableGems();
-
-                // This fixes the CS0126 error by returning a valid 'null' job.
-                if (!gemsToLvlUpElements.Any())
+                if (gemsToLvlUpElements.Any())
                 {
-                    return null; 
-                }
-
-                var elementToClick = gemsToLvlUpElements.FirstOrDefault()?.GetChildAtIndex(1);
-                if (elementToClick != null)
-                {
-                    // Start the helper coroutine to do the work.
-                    // --- CORRECTED CODE ---
-                    var gemLevelCoroutine = new Coroutine(LevelUpGem(elementToClick), this, "LevelUpGemAction");
-                    Core.ParallelRunner.Run(gemLevelCoroutine);
+                    var elementToClick = gemsToLvlUpElements.FirstOrDefault()?.GetChildAtIndex(1);
+                    if (elementToClick != null)
+                    {
+                        var gemLevelCoroutine = new Coroutine(LevelUpGem(elementToClick), this, "LevelUpGemAction");
+                        Core.ParallelRunner.Run(gemLevelCoroutine);
+                    }
                 }
             }
-
-
 
             // Skill usage
 
