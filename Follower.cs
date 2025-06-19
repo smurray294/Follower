@@ -44,6 +44,10 @@ namespace Follower
         private Thread _clientThread;
         private volatile string _receivedCommand = null;
         private volatile bool _lootRequested = false;
+        volatile bool _transitionRequested = false;
+
+        private bool _isLevelingGem = false;
+
 
         private const int Delay = 75;
 
@@ -67,7 +71,7 @@ namespace Follower
 
             if (Settings.CryBot)
             {
-                _skills.Add(new Skill 
+                _skills.Add(new Skill
                 {
                     Name = "Enduring Cry",
                     Key = Keys.Q,      // Change this to whatever key you use for Enduring Cry
@@ -75,7 +79,7 @@ namespace Follower
                     UseMode = SkillUseMode.OnCooldownInRange
                 });
 
-                _skills.Add(new Skill 
+                _skills.Add(new Skill
                 {
                     Name = "Ancestral Cry",
                     Key = Keys.W,      // Change this to whatever key you use for Enduring Cry
@@ -83,10 +87,26 @@ namespace Follower
                     UseMode = SkillUseMode.OnCooldownInRange
                 });
 
-                _skills.Add(new Skill 
+                _skills.Add(new Skill
                 {
                     Name = "Battlemage's Cry",
                     Key = Keys.R,      // Change this to whatever key you use for Enduring Cry
+                    Cooldown = 4.2f,   // The 4-second cooldown you mentioned
+                    UseMode = SkillUseMode.OnCooldownInRange
+                });
+
+                _skills.Add(new Skill
+                {
+                    Name = "Intimidating Cry",
+                    Key = Keys.A,      // Change this to whatever key you use for Enduring Cry
+                    Cooldown = 4.2f,   // The 4-second cooldown you mentioned
+                    UseMode = SkillUseMode.OnCooldownInRange
+                });
+
+                _skills.Add(new Skill
+                {
+                    Name = "Seismic Cry",
+                    Key = Keys.F,      // Change this to whatever key you use for Enduring Cry
                     Cooldown = 4.2f,   // The 4-second cooldown you mentioned
                     UseMode = SkillUseMode.OnCooldownInRange
                 });
@@ -128,6 +148,32 @@ namespace Follower
                 Input.KeyUp(Settings.MovementKey);
             }
 
+            if (Settings.AutoLevelGems.Value)
+            {
+                // Don't do anything if we are already in the middle of leveling a gem.
+                if (_isLevelingGem)
+                {
+                    return null;
+                }
+
+                var gemsToLvlUpElements = GetLevelableGems();
+
+                // This fixes the CS0126 error by returning a valid 'null' job.
+                if (!gemsToLvlUpElements.Any())
+                {
+                    return null; 
+                }
+
+                var elementToClick = gemsToLvlUpElements.FirstOrDefault()?.GetChildAtIndex(1);
+                if (elementToClick != null)
+                {
+                    // Start the helper coroutine to do the work.
+                    // --- CORRECTED CODE ---
+                    var gemLevelCoroutine = new Coroutine(LevelUpGem(elementToClick), this, "LevelUpGemAction");
+                    Core.ParallelRunner.Run(gemLevelCoroutine);
+                }
+            }
+
 
 
             // Skill usage
@@ -135,7 +181,7 @@ namespace Follower
             if (Settings.IsFollowEnabled && _botCoroutine != null && !_botCoroutine.IsDone && GameController.Player.IsAlive)
             {
 
-            // --- NEW: The Area Check Gatekeeper ---
+                // --- NEW: The Area Check Gatekeeper ---
                 var currentArea = GameController.Area.CurrentArea;
                 var localFollowTarget = GetFollowingTarget();
 
@@ -163,7 +209,7 @@ namespace Follower
                 {
                     return null; // Don't try to cast if we're already busy.
                 }
-                
+
                 // Go through our list of skills in order of priority.
                 foreach (var skill in _skills)
                 {
@@ -191,9 +237,9 @@ namespace Follower
                     // --- Action Phase ---
                     // If we passed all checks, it's time to cast!
                     LogMessage($"Casting skill: {skill.Name}", 3, SharpDX.Color.LawnGreen);
-                    
+
                     Keyboard.KeyPress(skill.Key);
-                    
+
                     // Update the cooldown timer.
                     skill.NextUseTime = DateTime.Now.AddSeconds(skill.Cooldown);
 
@@ -296,7 +342,14 @@ namespace Follower
 
                     // After looting is finished, restart the main loop from the top
                     // to re-evaluate the game state.
-                    continue; 
+                    continue;
+                }
+
+                if (_transitionRequested)
+                {
+                    _transitionRequested = false;
+                    yield return HandleTakeNearestTransition();
+                    continue;
                 }
 
                 var playerDistanceMoved = Vector3.Distance(GameController.Player.Pos, _lastPlayerPosition);
@@ -555,6 +608,72 @@ namespace Follower
 
         // Your existing Render method goes here, no changes needed.
 
+        private IEnumerator LevelUpGem(Element gemElementToClick)
+        {
+            // 1. Set our busy flag so Tick() doesn't try to start this again
+            _isLevelingGem = true;
+
+            LogMessage("Found gem to level. Initiating click sequence.", 3);
+
+            // 2. Calculate delays (this part is fine)
+            var actionDelay = 25 + GameController.IngameState.ServerData.Latency;
+            var gemDelay = 25 + GameController.IngameState.ServerData.Latency;
+
+            // 3. Translate the logic using 'yield return new WaitTime'
+            Mouse.SetCursorPos(gemElementToClick.GetClientRect().Center);
+            yield return new WaitTime(actionDelay);
+            
+            Mouse.LeftClick();
+            
+            yield return new WaitTime(gemDelay);
+
+            // 4. We are done, so reset the busy flag
+            _isLevelingGem = false;
+        }
+
+        private List<Element> GetLevelableGems()
+        {
+            var gemsToLevelUp = new List<Element>();
+
+            var possibleGemsToLvlUpElements = GameController.IngameState.IngameUi?.GemLvlUpPanel?.GemsToLvlUp;
+
+            if (possibleGemsToLvlUpElements != null && possibleGemsToLvlUpElements.Any())
+            {
+                foreach (var possibleGemsToLvlUpElement in possibleGemsToLvlUpElements)
+                {
+                    foreach (var elem in possibleGemsToLvlUpElement.Children)
+                    {
+                        if (elem.Text != null && elem.Text.Contains("Click to level"))
+                            gemsToLevelUp.Add(possibleGemsToLvlUpElement);
+                    }
+                }
+            }
+
+            return gemsToLevelUp;
+        }
+
+        private IEnumerator HandleTakeNearestTransition()
+        {
+            LogMessage("Take Nearest Transition command received.", 3, SharpDX.Color.Aqua);
+
+            var nearestTransition = GameController.IngameState.IngameUi.ItemsOnGroundLabelsVisible
+                .Where(x => x.ItemOnGround.Metadata.Contains("AreaTransition") || x.ItemOnGround.Metadata.Contains("Portal") || x.ItemOnGround.Metadata.ToLower().Contains("woodsentrancetransition"))
+                .OrderBy(x => x.ItemOnGround.DistancePlayer)
+                .FirstOrDefault();
+
+            if (nearestTransition != null)
+            {
+                LogMessage("Found nearby transition. Clicking...", 3, SharpDX.Color.LawnGreen);
+                yield return Mouse.SetCursorPosHuman(nearestTransition.Label.GetClientRect().Center, false);
+                yield return Mouse.LeftClick();
+                yield return new WaitTime(200); // Wait for potential load screen
+            }
+            else
+            {
+                LogError("Could not find any visible transitions.", 5);
+            }
+        }
+
         private IEnumerator HandleLooting()
         {
             // Make sure we stop moving before we start looting.
@@ -564,7 +683,7 @@ namespace Follower
             LogMessage("Scanning for visible items to loot...", 3);
 
             // This is the range within which the bot will attempt to loot.
-            const float LootRange = 500f;
+            const float LootRange = 200f;
 
             // Get a list of all VISIBLE item labels on the ground within loot range.
             // This relies on your custom, minimalist loot filter.
@@ -637,6 +756,12 @@ namespace Follower
                 {
                     LogMessage("Loot command received!", 3, SharpDX.Color.Aqua);
                     _lootRequested = true;
+                }
+
+                else if (commandToProcess == "TRANSITION")
+                {
+                    LogMessage("Transition command received!", 3, SharpDX.Color.Aqua);
+                    _transitionRequested = true;
                 }
             }
         }
@@ -1128,7 +1253,7 @@ namespace Follower
 
         #endregion
     }
-    
+
     // Add this enum above your Skill class
     public enum SkillUseMode
     {
