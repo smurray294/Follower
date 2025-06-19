@@ -621,11 +621,10 @@ namespace Follower
 
             // 3. Translate the logic using 'yield return new WaitTime'
             Mouse.SetCursorPos(gemElementToClick.GetClientRect().Center);
-            yield return new WaitTime(actionDelay);
-            
-            Mouse.LeftClick();
-            
-            yield return new WaitTime(gemDelay);
+            yield return new WaitTime(50);
+            yield return Mouse.LeftClick();
+            yield return new WaitTime(200);
+
 
             // 4. We are done, so reset the busy flag
             _isLevelingGem = false;
