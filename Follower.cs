@@ -614,40 +614,63 @@ namespace Follower
 
         private IEnumerator HandleAcceptInvite()
         {
-            // Declare a variable to hold our button. We will find it inside the try block.
+            LogMessage("-> Entering HandleAcceptInvite...", 3, SharpDX.Color.Yellow);
+            
             Element acceptButton = null; 
 
             try
             {
-                // --- STEP 1: FINDING LOGIC ONLY (INSIDE THE TRY BLOCK) ---
-                // This is the only part that can throw an exception if the UI changes.
-
                 var invitesPanel = GameController.Game.IngameState.IngameUi.InvitesPanel;
-
-                if (invitesPanel != null && invitesPanel.IsVisible == true && invitesPanel.ChildCount > 0)
+                if (invitesPanel == null || invitesPanel.IsVisible == false)
                 {
-                    // Get the button and store it in our variable.
-                    acceptButton = invitesPanel.GetChildFromIndices(0, 2, 0);
+                    LogError("Debug: InvitesPanel is null or not visible. Exiting.", 5);
+                    yield break;
                 }
+                LogMessage("Debug: Found visible InvitesPanel.", 3, SharpDX.Color.LawnGreen);
+
+
+                var notification = invitesPanel.GetChildAtIndex(0);
+                if (notification == null)
+                {
+                    LogError("Debug: Notification (Child 0) is null. Exiting.", 5);
+                    yield break;
+                }
+                LogMessage("Debug: Found Notification (Child 0).", 3, SharpDX.Color.LawnGreen);
+
+
+                var buttonContainer = notification.GetChildAtIndex(2);
+                if (buttonContainer == null)
+                {
+                    LogError("Debug: Button Container (Child 0, 2) is null. Exiting.", 5);
+                    yield break;
+                }
+                LogMessage("Debug: Found Button Container (Child 0, 2).", 3, SharpDX.Color.LawnGreen);
+
+
+                acceptButton = buttonContainer.GetChildAtIndex(0);
+                if (acceptButton == null)
+                {
+                    LogError("Debug: Accept Button (Child 0, 2, 0) is null. Exiting.", 5);
+                    yield break;
+                }
+                LogMessage("Debug: Found Accept Button (Child 0, 2, 0).", 3, SharpDX.Color.LawnGreen);
             }
             catch (Exception e)
             {
-                LogError($"An error occurred while FINDING the invite button: {e.Message}", 5);
+                LogError($"An exception occurred while FINDING the button: {e.Message}", 5);
             }
 
-            // --- STEP 2: ACTING LOGIC ONLY (OUTSIDE THE TRY BLOCK) ---
-            // Now we check the variable we found and act on it. This fixes the CS1626 errors.
-
+            // --- Acting Phase ---
             if (acceptButton != null && acceptButton.IsVisible == true)
             {
-                LogMessage("Found 'Accept' button via direct path. Clicking...", 3, SharpDX.Color.LawnGreen);
+                LogMessage("Button is valid and visible. Attempting to click.", 3, SharpDX.Color.Aqua);
                 yield return Mouse.SetCursorPosHuman(acceptButton.GetClientRect().Center, false);
                 yield return Mouse.LeftClick();
                 yield return new WaitTime(500);
             }
             else
             {
-                LogError("InvitesPanel or its 'Accept' button was not found or not visible.", 5);
+                LogError("Final Check Failed: Accept button was null or not visible.", 5);
             }
         }
 
