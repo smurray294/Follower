@@ -1139,6 +1139,12 @@ namespace Follower
                     LogMessage("Accept Invite command received!", 3, SharpDX.Color.Aqua);
                     _acceptInviteRequested = true;
                 }
+
+                else if (commandToProcess == "GO_TO_HIDEOUT")
+                {
+                    LogMessage("Go To Hideout command received!", 3, SharpDX.Color.Aqua);
+                    _goToHideoutRequested = true;
+                }
             }
         }
         // --- (Paste all your other helper methods and Render here) ---
