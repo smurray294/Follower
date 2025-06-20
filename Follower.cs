@@ -50,6 +50,9 @@ namespace Follower
         private volatile bool _lootRequested = false;
         private volatile bool _acceptInviteRequested = false;
 
+        private volatile bool _goToHideoutRequested = false;
+
+
 
         volatile bool _transitionRequested = false;
 
@@ -416,7 +419,7 @@ namespace Follower
                 if (_acceptInviteRequested)
                 {
                     _acceptInviteRequested = false;
-                    yield return new WaitTime(500);
+                    yield return new WaitTime(1000);
                     yield return HandleAcceptInvite();
                     continue;
                 }
@@ -445,6 +448,13 @@ namespace Follower
                 {
                     _transitionRequested = false;
                     yield return HandleTakeNearestTransition();
+                    continue;
+                }
+
+                if (_goToHideoutRequested)
+                {
+                    _goToHideoutRequested = false;
+                    yield return HandleGoToHideout();
                     continue;
                 }
 
@@ -704,6 +714,51 @@ namespace Follower
 
         // Your existing Render method goes here, no changes needed.
 
+        private IEnumerator HandleGoToHideout()
+        {
+            LogMessage("Go To Hideout command received. Looking for a portal...", 3, SharpDX.Color.LawnGreen);
+            
+            const int maxAttempts = 5;
+            for (int attempt = 1; attempt <= maxAttempts; attempt++)
+            {
+                // On every attempt, re-scan for the closest portal.
+                var playerPos = GameController.Player.Pos;
+                var portal = GameController.IngameState.IngameUi.ItemsOnGroundLabelsVisible
+                    .Where(label => label.ItemOnGround.Metadata.ToLower().Contains("portal"))
+                    .OrderBy(label => Vector3.Distance(playerPos, label.ItemOnGround.Pos)) // Use manual distance for reliability
+                    .FirstOrDefault();
+
+                if (portal == null)
+                {
+                    LogError($"Attempt #{attempt}: No portals found. Retrying in 1s...", 5);
+                    yield return new WaitTime(1000);
+                    continue; // Go to the next iteration of the for loop
+                }
+
+                // We found a portal, let's click it.
+                LogMessage($"Attempt #{attempt}: Found portal. Clicking...", 3);
+                yield return Mouse.SetCursorPosHuman(portal.Label.GetClientRect().Center, false);
+                yield return Mouse.LeftClick();
+
+                // Wait a significant time for the loading screen.
+                yield return new WaitTime(3000);
+
+                // --- VERIFY SUCCESS ---
+                // The ultimate proof of success is that we are now in a hideout.
+                if (GameController.Area.CurrentArea.IsHideout)
+                {
+                    LogMessage("Successfully transitioned to hideout!", 5, SharpDX.Color.LawnGreen);
+                    yield break; // SUCCESS! Exit the entire coroutine.
+                }
+                else
+                {
+                    LogMessage($"Attempt #{attempt} failed. Still in map. Retrying...", 3, SharpDX.Color.Orange);
+                }
+            }
+
+            LogError($"Failed to go to hideout after {maxAttempts} attempts.", 5);
+        }
+
         private bool IsUltimatumWindowOpen()
         {
             // Use the direct path you found.
@@ -779,7 +834,7 @@ namespace Follower
                 {
                     // Click the choice
                     yield return Mouse.SetCursorPosHuman(clickableButton.GetClientRect().Center, false);
-                    yield return new WaitTime(50);
+                    yield return new WaitTime(100);
                     yield return Mouse.LeftClick();
                     yield return new WaitTime(250);
                 }
@@ -792,7 +847,7 @@ namespace Follower
                 {
                     // Click confirm
                     yield return Mouse.SetCursorPosHuman(confirmButton.GetClientRect().Center, false);
-                    yield return new WaitTime(50);
+                    yield return new WaitTime(100);
                     yield return Mouse.LeftClick();
                     yield return new WaitTime(250);
                 }
@@ -867,6 +922,7 @@ namespace Follower
             {
                 LogMessage("Button is valid and visible. Attempting to click.", 3, SharpDX.Color.Aqua);
                 yield return Mouse.SetCursorPosHuman(acceptButton.GetClientRect().Center, false);
+                yield return new WaitTime(75);
                 yield return Mouse.LeftClick();
                 yield return new WaitTime(500);
             }
@@ -926,7 +982,7 @@ namespace Follower
             if (leader != null && leader.DistancePlayer < 200)
             {
                 LogMessage("Already very close to leader. Ignoring transition command.", 3, SharpDX.Color.Yellow);
-                yield break; // Exit immediately
+                yield break;
             }
 
             LogMessage("Take Nearest Transition command received. Beginning transition attempts...", 3, SharpDX.Color.Aqua);
@@ -936,17 +992,17 @@ namespace Follower
             {
                 LogMessage($"Transition attempt {attempt}/{maxAttempts}...", 3);
 
-                // --- STEP 2: Find the Nearest Portal (re-check on every attempt) ---
+                // --- STEP 2: Find the Nearest Portal (using manual distance calculation) ---
+                
+                // Get the player's current position once for this attempt.
+                var playerPos = GameController.Player.Pos; 
+                
                 var nearestTransition = GameController.IngameState.IngameUi.ItemsOnGroundLabelsVisible
-                    .Where(label =>
-                    {
-                        // Get the metadata once and convert to lowercase for case-insensitive checks
+                    .Where(label => {
                         string metadata = label.ItemOnGround.Metadata.ToLower();
-
-                        // Check against our list of known transition keywords
                         return metadata.Contains("areatransition") ||
                             metadata.Contains("portal") ||
-                            metadata.Contains("woodsentrancetransition") || // Your existing one
+                            metadata.Contains("woodsentrancetransition") ||
                             metadata.Contains("stairs") ||
                             metadata.Contains("ramp") ||
                             metadata.Contains("door") ||
@@ -954,41 +1010,40 @@ namespace Follower
                             metadata.Contains("ladder") ||
                             metadata.Contains("arena");
                     })
-                    .OrderBy(x => x.ItemOnGround.DistancePlayer)
+                    // --- THIS IS THE FIX ---
+                    // We now manually calculate the distance between the player and the transition.
+                    .OrderBy(label => Vector3.Distance(playerPos, label.ItemOnGround.Pos))
                     .FirstOrDefault();
 
+                // --- The rest of your logic remains exactly the same ---
                 if (nearestTransition == null)
                 {
                     LogError("Could not find any visible transitions to take.", 5);
-                    yield return new WaitTime(500); // Wait a second before retrying
-                    continue; // Skip to the next attempt in the for loop
+                    yield return new WaitTime(500);
+                    continue;
                 }
 
-                // --- STEP 3: Click the Portal ---
-                LogMessage($"Found portal '{nearestTransition.ItemOnGround.Metadata}'. Clicking...", 3, SharpDX.Color.LawnGreen);
+                LogMessage($"Found portal '{nearestTransition.ItemOnGround.Metadata}' at distance {Vector3.Distance(playerPos, nearestTransition.ItemOnGround.Pos):F0}. Clicking...", 3, SharpDX.Color.LawnGreen);
                 yield return Mouse.SetCursorPosHuman(nearestTransition.Label.GetClientRect().Center, false);
                 yield return Mouse.LeftClick();
 
-                // --- STEP 4: Wait for Loading Screen ---
-                // A significant but non-blocking wait.
                 yield return new WaitTime(500);
 
-                // --- STEP 5: Verify Success ---
                 leader = GetFollowingTarget();
                 if (leader != null && leader.DistancePlayer < 150)
                 {
                     LogMessage("Transition successful! Now close to leader.", 5, SharpDX.Color.LawnGreen);
-                    yield break; // SUCCESS! Exit the entire coroutine.
+                    yield break;
                 }
                 else
                 {
-                    LogMessage($"Transition attempt {attempt} failed. Still far from leader or leader not found.", 3, SharpDX.Color.Orange);
-                    // The loop will now continue to the next attempt.
+                    LogMessage($"Transition attempt {attempt} failed.", 3, SharpDX.Color.Orange);
                 }
             }
 
             LogError($"Failed to transition after {maxAttempts} attempts. Giving up.", 5);
         }
+
         private IEnumerator HandleLooting()
         {
             // Make sure we stop moving before we start looting.
