@@ -619,15 +619,22 @@ namespace Follower
             try
             {
                 var ui = GameController.Game.IngameState.IngameUi;
-                var notification = ui.Children.FirstOrDefault(c => 
-                                        // FIX #1: Check the left side for true
-                                        c.IsVisible == true && 
-                                        // FIX #2: Check the right side for true, converting bool? to bool
-                                        (c.GetChildFromIndices(0, 0)?.Text.Contains("has invited you to a party") == true));
                 
-                if (notification != null)
+                // Step 1: Find the main notification panel.
+                var notificationPanel = ui.Children.FirstOrDefault(c => 
+                                            c.IsVisible == true && 
+                                            (c.GetChildFromIndices(0, 0)?.Text.Contains("has invited you to a party") == true));
+                
+                if (notificationPanel != null)
                 {
-                    acceptButton = notification.GetChildFromIndices(1, 0); 
+                    // Step 2: Search all children of that panel for the "Accept" button.
+                    var allChildren = new List<Element>();
+                    GetAllChildrenRecursive(notificationPanel, allChildren);
+                    
+                    acceptButton = allChildren.FirstOrDefault(child => 
+                                        child.IsVisible == true && 
+                                        child.Text != null && 
+                                        child.Text.Equals("Accept", StringComparison.OrdinalIgnoreCase));
                 }
             }
             catch (Exception e)
@@ -635,17 +642,17 @@ namespace Follower
                 LogError($"An error occurred while FINDING the invite button: {e.Message}", 5);
             }
 
-            // This part of the logic was already correct, comparing IsVisible to true.
-            if (acceptButton != null && acceptButton.IsVisible == true)
+            // Step 3: Act on the result, outside the try/catch block.
+            if (acceptButton != null)
             {
-                LogMessage("Found party invite. Clicking 'Accept'.", 3, SharpDX.Color.LawnGreen);
+                LogMessage("Found 'Accept' button by text. Clicking...", 3, SharpDX.Color.LawnGreen);
                 yield return Mouse.SetCursorPosHuman(acceptButton.GetClientRect().Center, false);
                 yield return Mouse.LeftClick();
                 yield return new WaitTime(500);
             }
             else
             {
-                LogError("Could not find a visible party invite or its 'Accept' button.", 5);
+                LogError("Could not find a visible party invite notification or its 'Accept' button.", 5);
             }
         }
 
