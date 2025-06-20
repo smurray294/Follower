@@ -709,13 +709,13 @@ namespace Follower
                     break; 
                 }
 
-                // --- Timeout Failsafe ---
-                if ((DateTime.Now - startTime).TotalSeconds > Settings.UltimatumTimeout.Value)
-                {
-                    LogMessage("Leader choice timeout. Defaulting to first option (index 0).", 5, SharpDX.Color.Orange);
-                    leaderChoiceIndex = 0;
-                    break; 
-                }
+                // // --- Timeout Failsafe ---
+                // if ((DateTime.Now - startTime).TotalSeconds > Settings.UltimatumTimeout.Value)
+                // {
+                //     LogMessage("Leader choice timeout. Defaulting to first option (index 0).", 5, SharpDX.Color.Orange);
+                //     leaderChoiceIndex = 0;
+                //     break; 
+                // }
                 yield return new WaitTime(250);
             }
 
