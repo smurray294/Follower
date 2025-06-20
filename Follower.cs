@@ -36,6 +36,8 @@ namespace Follower
         private byte[,] _tiles;
         private Vector3 _skillTargetPosition; // <-- ADD THIS LINE
 
+        private bool _isHandlingUltimatum = false;
+
 
         internal DateTime lastTimeAny;
 
@@ -171,6 +173,13 @@ namespace Follower
                 LogMessage("Stopping Bot Coroutine...", 3, SharpDX.Color.Red);
                 _botCoroutine.Done();
                 Input.KeyUp(Settings.MovementKey);
+            }
+
+            if (IsUltimatumWindowOpen() && !_isHandlingUltimatum)
+            {
+                // We've detected the window. Start the handling process.
+                var ultimatumCoroutine = new Coroutine(HandleUltimatum(), this, "HandleUltimatumAction");
+                Core.ParallelRunner.Run(ultimatumCoroutine);
             }
 
             if (Settings.AutoLevelGems.Value && !_isLevelingGem)
@@ -656,6 +665,96 @@ namespace Follower
 
         // Your existing Render method goes here, no changes needed.
 
+        private bool IsUltimatumWindowOpen()
+        {
+            // Use the direct path you found.
+            return GameController.Game.IngameState.IngameUi.UltimatumPanel?.IsVisible == true;
+        }
+
+        private IEnumerator HandleUltimatum()
+        {
+            _isHandlingUltimatum = true;
+            LogMessage("Ultimatum window detected. Waiting for leader's choice...", 5, SharpDX.Color.Magenta);
+            Input.KeyUp(Settings.MovementKey);
+
+            DateTime startTime = DateTime.Now;
+            int leaderChoiceIndex = -1; // We will store the index (0, 1, or 2) of the leader's choice here.
+
+            // --- WAIT/DETECT LOOP ---
+            while (IsUltimatumWindowOpen() && leaderChoiceIndex == -1)
+            {
+                try
+                {
+                    // Use Path A to find the index of the locked choice.
+                    var choiceDataElements = GameController.Game.IngameState.IngameUi.UltimatumPanel?.ChoicesPanel?.ChoiceElements;
+
+                    if (choiceDataElements != null)
+                    {
+                        for (int i = 0; i < choiceDataElements.Count; i++)
+                        {
+                            var ultimatumChoiceData = choiceDataElements[i].AsObject<UltimatumChoiceElement>();
+                            if (ultimatumChoiceData?.LockedVotes == 1)
+                            {
+                                leaderChoiceIndex = i; // We found it! The leader chose index i.
+                                break;
+                            }
+                        }
+                    }
+                }
+                catch (Exception e) { LogError($"Error checking Ultimatum choice: {e.Message}", 5); }
+
+                if (leaderChoiceIndex != -1)
+                {
+                    LogMessage($"Detected leader's choice at index {leaderChoiceIndex}.", 3, SharpDX.Color.LawnGreen);
+                    break; 
+                }
+
+                // --- Timeout Failsafe ---
+                if ((DateTime.Now - startTime).TotalSeconds > Settings.UltimatumTimeout.Value)
+                {
+                    LogMessage("Leader choice timeout. Defaulting to first option (index 0).", 5, SharpDX.Color.Orange);
+                    leaderChoiceIndex = 0;
+                    break; 
+                }
+                yield return new WaitTime(250);
+            }
+
+            // --- ACTION PHASE ---
+            if (IsUltimatumWindowOpen() && leaderChoiceIndex != -1)
+            {
+                // Now, use Path B to get the clickable button using the index we just found.
+                var clickableButton = GameController.Game.IngameState.IngameUi.UltimatumPanel?.ChoicesPanel?.GetChildFromIndices(0, leaderChoiceIndex);
+
+                if (clickableButton != null && clickableButton.IsVisible == true)
+                {
+                    LogMessage($"Clicking Ultimatum choice button at index {leaderChoiceIndex}...", 3, SharpDX.Color.Aqua);
+                    yield return Mouse.SetCursorPosHuman(clickableButton.GetClientRect().Center, false);
+                    yield return Mouse.LeftClick();
+                    yield return new WaitTime(300);
+
+                    // Click the main "Confirm" button.
+                    var confirmButton = GameController.Game.IngameState.IngameUi.UltimatumPanel?.ConfirmButton;
+                    if (confirmButton != null && confirmButton.IsVisible == true)
+                    {
+                        LogMessage("Clicking Confirm button...", 3);
+                        yield return Mouse.SetCursorPosHuman(confirmButton.GetClientRect().Center, false);
+                        yield return Mouse.LeftClick();
+                    }
+                }
+                else
+                {
+                    LogError($"Could not find the clickable button at index {leaderChoiceIndex}.", 5);
+                }
+            }
+
+            // --- CLEANUP PHASE ---
+            LogMessage("Waiting for Ultimatum window to close...", 3);
+            while (IsUltimatumWindowOpen()) { yield return new WaitTime(100); }
+
+            LogMessage("Ultimatum sequence complete. Resuming logic.", 5, SharpDX.Color.Magenta);
+            _isHandlingUltimatum = false;
+        }
+ 
         private IEnumerator HandleAcceptInvite()
         {
             LogMessage("-> Entering HandleAcceptInvite...", 3, SharpDX.Color.Yellow);

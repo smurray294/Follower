@@ -28,6 +28,9 @@ public class FollowerSettings : ISettings
     [Menu("Aurabot")] public ToggleNode Aurabot { get; set; } = new ToggleNode(false);
     [Menu("Druggery")] public ToggleNode Druggery { get; set; } = new ToggleNode(false);
 
+    [Menu("Ultimatum: Leader Timeout", "Max seconds to wait for the leader's choice before picking the first option.", 300)]
+    public RangeNode<int> UltimatumTimeout { get; set; } = new RangeNode<int>(20, 10, 30);
+
     // Place this with your other skill-related settings
     [Menu("Warcry Cooldown", "Cooldown in seconds for all Warcry skills.")]
     public RangeNode<float> WarcryCooldown { get; set; } = new RangeNode<float>(3.8f, 0.1f, 10.0f);
