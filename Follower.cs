@@ -139,6 +139,40 @@ namespace Follower
                 });
             }
 
+            if (Settings.Druggery)
+            {
+                _skills.Add(new Skill
+                {
+                    Name = "Mine",
+                    Key = Keys.Q,
+                    Cooldown = 0.4f,
+                    UseMode = SkillUseMode.OffensiveTargetedAttack,
+                    // We don't need to set HPPThreshold or ESPThreshold for this mode
+                });
+            }
+
+            if (Settings.Aurabot)
+            {
+                _skills.Add(new Skill
+                {
+                    Name = "Mine",
+                    Key = Keys.Q,
+                    Cooldown = 2.5f,
+                    UseMode = SkillUseMode.OffensiveTargetedAttack,
+                    // We don't need to set HPPThreshold or ESPThreshold for this mode
+                });
+
+                _skills.Add(new Skill
+                {
+                    Name = "Smite",
+                    Key = Keys.W,
+                    Cooldown = 3f,
+                    UseMode = SkillUseMode.OnCooldownInRange
+                    // We don't need to set HPPThreshold or ESPThreshold for this mode
+                });
+            }
+
+
             return true;
         }
 
@@ -262,8 +296,13 @@ namespace Follower
                             break;
 
                         case SkillUseMode.OffensiveTargetedAttack:
+
+                            if (Vector3.Distance(GameController.Player.Pos, localFollowTarget.Pos) > 250)
+                            {
+                                continue;
+                            }
                             // Call our new helper function to find the best target.
-                            var target = GetBestOffensiveTarget(skill);
+                                var target = GetBestOffensiveTarget(skill);
 
                             // If the helper found a valid target, then conditions are met.
                             if (target != null)
