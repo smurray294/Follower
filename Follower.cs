@@ -623,7 +623,7 @@ namespace Follower
                 // Step 1: Find the main notification panel.
                 var notificationPanel = ui.Children.FirstOrDefault(c => 
                                             c.IsVisible == true && 
-                                            (c.GetChildFromIndices(0, 0)?.Text.Contains("has invited you to a party") == true));
+                                            (c.GetChildFromIndices(0, 0)?.Text.Contains("sent you") == true));
                 
                 if (notificationPanel != null)
                 {
