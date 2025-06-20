@@ -34,6 +34,8 @@ namespace Follower
         private volatile bool _mercClickRequested = false;
         private int _numRows, _numCols;
         private byte[,] _tiles;
+        private Vector3 _skillTargetPosition; // <-- ADD THIS LINE
+
 
         internal DateTime lastTimeAny;
 
@@ -120,6 +122,19 @@ namespace Follower
                     Key = Keys.D,      // Change this to whatever key you use for Enduring Cry
                     Cooldown = 4f,   // The 4-second cooldown you mentioned
                     UseMode = SkillUseMode.OnCooldownInRange
+                });
+            }
+
+            if (Settings.ManaGuardian)
+            {
+                _skills.Add(new Skill 
+                {
+                    Name = "Mine",
+                    Key = Keys.Q,
+                    Cooldown = 0.8f,
+                    UseMode = SkillUseMode.OffensiveTargetedAttack,
+                    Range = 500f // Look for enemies in a large radius
+                    // We don't need to set HPPThreshold or ESPThreshold for this mode
                 });
             }
 
@@ -231,18 +246,50 @@ namespace Follower
                         continue; // Skip to the next skill.
                     }
 
-                    // --- Action Phase ---
-                    // If we passed all checks, it's time to cast!
-                    LogMessage($"Casting skill: {skill.Name}", 3, SharpDX.Color.LawnGreen);
+                    bool conditionsMet = false;
+                    switch (skill.UseMode)
+                    {
+                        case SkillUseMode.OnCooldownInRange:
+                            conditionsMet = true;
+                            break;
+                            
+                        case SkillUseMode.OffensiveTargetedAttack:
+                            // Find the closest valid enemy within the skill's defined range.
+                            var target = GameController.EntityListWrapper.ValidEntitiesByType[EntityType.Monster]
+                                                        .Where(e => e.DistancePlayer < skill.Range)
+                                                        .OrderBy(e => e.DistancePlayer)
+                                                        .FirstOrDefault();
 
-                    Keyboard.KeyPress(skill.Key);
+                            // If we found a target, conditions are met.
+                            if (target != null)
+                            {
+                                _skillTargetPosition = target.Pos; // Store its position for aiming
+                                conditionsMet = true;
+                            }
+                            break;
+                    }
 
-                    // Update the cooldown timer.
-                    skill.NextUseTime = DateTime.Now.AddSeconds(skill.Cooldown);
+                    if (conditionsMet)
+                    {
+                        LogMessage($"Casting skill '{skill.Name}' (Rule: {skill.UseMode})", 3, SharpDX.Color.LawnGreen);
+                        
+                        // --- AIMING LOGIC for our new offensive mode ---
+                        if (skill.UseMode == SkillUseMode.OffensiveTargetedAttack)
+                        {
+                            var targetScreenPos = Camera.WorldToScreen(_skillTargetPosition);
+                            
+                            // Aim directly at the target's screen position
+                            Mouse.SetCursorPos(targetScreenPos);
+                        }
+
+                        Keyboard.KeyPress(skill.Key);
+                        skill.NextUseTime = DateTime.Now.AddSeconds(skill.Cooldown);
+                        break;
+                    }
 
                     // IMPORTANT: We only cast ONE skill per tick.
                     // Break the loop so we can re-evaluate priorities on the next frame.
-                    break;
+                    
                 }
             }
 
@@ -325,6 +372,7 @@ namespace Follower
                 if (_acceptInviteRequested)
                 {
                     _acceptInviteRequested = false;
+                    yield return new WaitTime(500);
                     yield return HandleAcceptInvite();
                     continue;
                 }
@@ -1201,6 +1249,40 @@ namespace Follower
             bool finalCondition = isFollowTargetNull && isLeaderPartyElementFound && areZonesDifferent;
             Graphics.DrawText($"==> Overall Condition is: {finalCondition}", new Vector2(500, 280), finalCondition ? SharpDX.Color.LawnGreen : SharpDX.Color.Red);
 
+            // =======================================================
+            // NEW: Live Range Visualizer
+            // =======================================================
+            if (Settings.ShowRangeVisualizer.Value)
+            {
+                var playerPos = GameController.Player.Pos;
+                float radius = Settings.VisualizerRange.Value;
+                int segments = 36; // The number of line segments to use to approximate a circle. 36 is smooth.
+                
+                // Calculate the points of the circle
+                var points = new List<Vector2>();
+                for (int i = 0; i <= segments; i++)
+                {
+                    float angle = (float)(i * (360.0 / segments));
+                    float rad = (float)(angle * Math.PI / 180.0); // Convert angle to radians for Sin/Cos
+
+                    // Calculate the world position of the point on the circle's edge
+                    var worldPoint = new Vector3(
+                        playerPos.X + radius * (float)Math.Cos(rad),
+                        playerPos.Y + radius * (float)Math.Sin(rad),
+                        playerPos.Z
+                    );
+                    
+                    // Convert the world position to a screen position
+                    points.Add(Camera.WorldToScreen(worldPoint));
+                }
+
+                // Draw the lines connecting the points
+                for (int i = 0; i < segments; i++)
+                {
+                    Graphics.DrawLine(points[i], points[i+1], 2, SharpDX.Color.Yellow);
+                }
+            }
+
             // --- END OF NEW DEBUG SECTION ---
         }
 
@@ -1377,7 +1459,8 @@ namespace Follower
     {
         OnCooldown,         // Use whenever it's off cooldown (e.g., for a temporary buff like Blood Rage)
         OnCooldownInRange,  // Use whenever it's off cooldown, BUT only if close to the leader (for War Cries)
-        OnMonstersInRange   // Use when a certain number of monsters are nearby (for attacks or curses)
+        OnMonstersInRange,   // Use when a certain number of monsters are nearby (for attacks or curses)
+        OffensiveTargetedAttack // <-- NEW
     }
 
     // Place this at the bottom of your Follower.cs file, inside the namespace
@@ -1386,6 +1469,8 @@ namespace Follower
         public string Name { get; set; }
         public Keys Key { get; set; }
         public float Cooldown { get; set; } // Cooldown in seconds
+
+        public float Range { get; set; } // Cooldown in seconds
         public DateTime NextUseTime { get; set; } = DateTime.Now;
         public SkillUseMode UseMode { get; set; }
     }
