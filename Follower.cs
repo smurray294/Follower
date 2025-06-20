@@ -719,40 +719,60 @@ namespace Follower
                 yield return new WaitTime(250);
             }
 
-            // --- ACTION PHASE ---
-            if (IsUltimatumWindowOpen() && leaderChoiceIndex != -1)
+            if (leaderChoiceIndex == -1)
             {
-                // Now, use Path B to get the clickable button using the index we just found.
+                LogError("Could not determine which Ultimatum choice to make. Aborting.", 5);
+                _isHandlingUltimatum = false;
+                yield break;
+            }
+
+            // --- ACTION PHASE ---
+            const int maxAttempts = 10; // A failsafe to prevent infinite loops
+            for (int attempt = 0; attempt < maxAttempts && IsUltimatumWindowOpen(); attempt++)
+            {
+                LogMessage($"Ultimatum click attempt #{attempt + 1}", 3, SharpDX.Color.Aqua);
+                
+                // Find the clickable button based on the index we found.
                 var clickableButton = GameController.Game.IngameState.IngameUi.UltimatumPanel?.ChoicesPanel?.GetChildFromIndices(0, leaderChoiceIndex);
+                var confirmButton = GameController.Game.IngameState.IngameUi.UltimatumPanel?.ConfirmButton;
 
                 if (clickableButton != null && clickableButton.IsVisible == true)
                 {
-                    LogMessage($"Clicking Ultimatum choice button at index {leaderChoiceIndex}...", 3, SharpDX.Color.Aqua);
+                    // Click the choice
                     yield return Mouse.SetCursorPosHuman(clickableButton.GetClientRect().Center, false);
+                    yield return new WaitTime(50);
                     yield return Mouse.LeftClick();
-                    yield return new WaitTime(1000);
-
-                    // Click the main "Confirm" button.
-                    var confirmButton = GameController.Game.IngameState.IngameUi.UltimatumPanel?.ConfirmButton;
-                    if (confirmButton != null && confirmButton.IsVisible == true)
-                    {
-                        LogMessage("Clicking Confirm button...", 3);
-                        yield return Mouse.SetCursorPosHuman(confirmButton.GetClientRect().Center, false);
-                        yield return Mouse.LeftClick();
-                    }
+                    yield return new WaitTime(250);
                 }
                 else
                 {
-                    LogError($"Could not find the clickable button at index {leaderChoiceIndex}.", 5);
+                    LogError($"Attempt #{attempt + 1}: Could not find the choice button at index {leaderChoiceIndex}. Retrying.", 5);
                 }
+
+                if (confirmButton != null && confirmButton.IsVisible == true)
+                {
+                    // Click confirm
+                    yield return Mouse.SetCursorPosHuman(confirmButton.GetClientRect().Center, false);
+                    yield return new WaitTime(50);
+                    yield return Mouse.LeftClick();
+                    yield return new WaitTime(250);
+                }
+                
+                // Wait a moment for the game to process our clicks and potentially close the window.
+                yield return new WaitTime(500);
             }
 
-            // --- CLEANUP PHASE ---
-            LogMessage("Waiting for Ultimatum window to close...", 3);
-            while (IsUltimatumWindowOpen()) { yield return new WaitTime(100); }
+            // --- FINAL CLEANUP ---
+            if (IsUltimatumWindowOpen())
+            {
+                LogError($"Ultimatum window still open after {maxAttempts} attempts. Giving up.", 5);
+            }
+            else
+            {
+                LogMessage("Ultimatum sequence complete. Window is closed.", 5, SharpDX.Color.Magenta);
+            }
 
-            LogMessage("Ultimatum sequence complete. Resuming logic.", 5, SharpDX.Color.Magenta);
-            _isHandlingUltimatum = false;
+            _isHandlingUltimatum = false; // Reset the flag so we're ready for the next round.
         }
  
         private IEnumerator HandleAcceptInvite()
