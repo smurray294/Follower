@@ -834,7 +834,7 @@ namespace Follower
                 {
                     // Click the choice
                     yield return Mouse.SetCursorPosHuman(clickableButton.GetClientRect().Center, false);
-                    yield return new WaitTime(100);
+                    yield return new WaitTime(50);
                     yield return Mouse.LeftClick();
                     yield return new WaitTime(250);
                 }
@@ -847,7 +847,7 @@ namespace Follower
                 {
                     // Click confirm
                     yield return Mouse.SetCursorPosHuman(confirmButton.GetClientRect().Center, false);
-                    yield return new WaitTime(100);
+                    yield return new WaitTime(50);
                     yield return Mouse.LeftClick();
                     yield return new WaitTime(250);
                 }
