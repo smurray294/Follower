@@ -44,6 +44,9 @@ namespace Follower
         private Thread _clientThread;
         private volatile string _receivedCommand = null;
         private volatile bool _lootRequested = false;
+        private volatile bool _acceptInviteRequested = false;
+
+
         volatile bool _transitionRequested = false;
 
         private bool _isLevelingGem = false;
@@ -75,7 +78,7 @@ namespace Follower
                 {
                     Name = "Enduring Cry",
                     Key = Keys.Q,      // Change this to whatever key you use for Enduring Cry
-                    Cooldown = 4.2f,   // The 4-second cooldown you mentioned
+                    Cooldown = 4f,   // The 4-second cooldown you mentioned
                     UseMode = SkillUseMode.OnCooldownInRange
                 });
 
@@ -83,7 +86,7 @@ namespace Follower
                 {
                     Name = "Ancestral Cry",
                     Key = Keys.W,      // Change this to whatever key you use for Enduring Cry
-                    Cooldown = 4.2f,   // The 4-second cooldown you mentioned
+                    Cooldown = 4f,   // The 4-second cooldown you mentioned
                     UseMode = SkillUseMode.OnCooldownInRange
                 });
 
@@ -91,7 +94,7 @@ namespace Follower
                 {
                     Name = "Battlemage's Cry",
                     Key = Keys.R,      // Change this to whatever key you use for Enduring Cry
-                    Cooldown = 4.2f,   // The 4-second cooldown you mentioned
+                    Cooldown = 4f,   // The 4-second cooldown you mentioned
                     UseMode = SkillUseMode.OnCooldownInRange
                 });
 
@@ -99,7 +102,7 @@ namespace Follower
                 {
                     Name = "Intimidating Cry",
                     Key = Keys.A,      // Change this to whatever key you use for Enduring Cry
-                    Cooldown = 4.2f,   // The 4-second cooldown you mentioned
+                    Cooldown = 4f,   // The 4-second cooldown you mentioned
                     UseMode = SkillUseMode.OnCooldownInRange
                 });
 
@@ -107,7 +110,15 @@ namespace Follower
                 {
                     Name = "Seismic Cry",
                     Key = Keys.F,      // Change this to whatever key you use for Enduring Cry
-                    Cooldown = 4.2f,   // The 4-second cooldown you mentioned
+                    Cooldown = 4f,   // The 4-second cooldown you mentioned
+                    UseMode = SkillUseMode.OnCooldownInRange
+                });
+
+                _skills.Add(new Skill
+                {
+                    Name = "Warcry 6",
+                    Key = Keys.D,      // Change this to whatever key you use for Enduring Cry
+                    Cooldown = 4f,   // The 4-second cooldown you mentioned
                     UseMode = SkillUseMode.OnCooldownInRange
                 });
             }
@@ -308,6 +319,13 @@ namespace Follower
                 {
                     ResetState();
                     yield return new WaitTime(500); // Wait if we're in a state where we can't act
+                    continue;
+                }
+
+                if (_acceptInviteRequested)
+                {
+                    _acceptInviteRequested = false;
+                    yield return HandleAcceptInvite();
                     continue;
                 }
 
@@ -594,6 +612,43 @@ namespace Follower
 
         // Your existing Render method goes here, no changes needed.
 
+        private IEnumerator HandleAcceptInvite()
+        {
+            Element acceptButton = null;
+
+            try
+            {
+                var ui = GameController.Game.IngameState.IngameUi;
+                var notification = ui.Children.FirstOrDefault(c => 
+                                        // FIX #1: Check the left side for true
+                                        c.IsVisible == true && 
+                                        // FIX #2: Check the right side for true, converting bool? to bool
+                                        (c.GetChildFromIndices(0, 0)?.Text.Contains("has invited you to a party") == true));
+                
+                if (notification != null)
+                {
+                    acceptButton = notification.GetChildFromIndices(1, 0); 
+                }
+            }
+            catch (Exception e)
+            {
+                LogError($"An error occurred while FINDING the invite button: {e.Message}", 5);
+            }
+
+            // This part of the logic was already correct, comparing IsVisible to true.
+            if (acceptButton != null && acceptButton.IsVisible == true)
+            {
+                LogMessage("Found party invite. Clicking 'Accept'.", 3, SharpDX.Color.LawnGreen);
+                yield return Mouse.SetCursorPosHuman(acceptButton.GetClientRect().Center, false);
+                yield return Mouse.LeftClick();
+                yield return new WaitTime(500);
+            }
+            else
+            {
+                LogError("Could not find a visible party invite or its 'Accept' button.", 5);
+            }
+        }
+
         private IEnumerator LevelUpGem(Element gemElementToClick)
         {
             // 1. Set our busy flag so Tick() doesn't try to start this again
@@ -639,26 +694,73 @@ namespace Follower
 
         private IEnumerator HandleTakeNearestTransition()
         {
-            LogMessage("Take Nearest Transition command received.", 3, SharpDX.Color.Aqua);
-
-            var nearestTransition = GameController.IngameState.IngameUi.ItemsOnGroundLabelsVisible
-                .Where(x => x.ItemOnGround.Metadata.Contains("AreaTransition") || x.ItemOnGround.Metadata.Contains("Portal") || x.ItemOnGround.Metadata.ToLower().Contains("woodsentrancetransition"))
-                .OrderBy(x => x.ItemOnGround.DistancePlayer)
-                .FirstOrDefault();
-
-            if (nearestTransition != null)
+            // --- STEP 1: Initial Sanity Check ---
+            var leader = GetFollowingTarget();
+            if (leader != null && leader.DistancePlayer < 200)
             {
-                LogMessage("Found nearby transition. Clicking...", 3, SharpDX.Color.LawnGreen);
+                LogMessage("Already very close to leader. Ignoring transition command.", 3, SharpDX.Color.Yellow);
+                yield break; // Exit immediately
+            }
+
+            LogMessage("Take Nearest Transition command received. Beginning transition attempts...", 3, SharpDX.Color.Aqua);
+            
+            const int maxAttempts = 5;
+            for (int attempt = 1; attempt <= maxAttempts; attempt++)
+            {
+                LogMessage($"Transition attempt {attempt}/{maxAttempts}...", 3);
+
+                // --- STEP 2: Find the Nearest Portal (re-check on every attempt) ---
+                var nearestTransition = GameController.IngameState.IngameUi.ItemsOnGroundLabelsVisible
+                    .Where(label => {
+                        // Get the metadata once and convert to lowercase for case-insensitive checks
+                        string metadata = label.ItemOnGround.Metadata.ToLower();
+
+                        // Check against our list of known transition keywords
+                        return metadata.Contains("areatransition") ||
+                            metadata.Contains("portal") ||
+                            metadata.Contains("woodsentrancetransition") || // Your existing one
+                            metadata.Contains("stairs") ||
+                            metadata.Contains("ramp") ||
+                            metadata.Contains("door") ||
+                            metadata.Contains("entrance") ||
+                            metadata.Contains("ladder") ||
+                            metadata.Contains("arena");
+                    })
+                    .OrderBy(x => x.ItemOnGround.DistancePlayer)
+                    .FirstOrDefault();
+
+                if (nearestTransition == null)
+                {
+                    LogError("Could not find any visible transitions to take.", 5);
+                    yield return new WaitTime(500); // Wait a second before retrying
+                    continue; // Skip to the next attempt in the for loop
+                }
+
+                // --- STEP 3: Click the Portal ---
+                LogMessage($"Found portal '{nearestTransition.ItemOnGround.Metadata}'. Clicking...", 3, SharpDX.Color.LawnGreen);
                 yield return Mouse.SetCursorPosHuman(nearestTransition.Label.GetClientRect().Center, false);
                 yield return Mouse.LeftClick();
-                yield return new WaitTime(200); // Wait for potential load screen
-            }
-            else
-            {
-                LogError("Could not find any visible transitions.", 5);
-            }
-        }
 
+                // --- STEP 4: Wait for Loading Screen ---
+                // A significant but non-blocking wait.
+                yield return new WaitTime(500);
+
+                // --- STEP 5: Verify Success ---
+                leader = GetFollowingTarget();
+                if (leader != null && leader.DistancePlayer < 150)
+                {
+                    LogMessage("Transition successful! Now close to leader.", 5, SharpDX.Color.LawnGreen);
+                    yield break; // SUCCESS! Exit the entire coroutine.
+                }
+                else
+                {
+                    LogMessage($"Transition attempt {attempt} failed. Still far from leader or leader not found.", 3, SharpDX.Color.Orange);
+                    // The loop will now continue to the next attempt.
+                }
+            }
+
+            LogError($"Failed to transition after {maxAttempts} attempts. Giving up.", 5);
+        }
         private IEnumerator HandleLooting()
         {
             // Make sure we stop moving before we start looting.
@@ -668,7 +770,7 @@ namespace Follower
             LogMessage("Scanning for visible items to loot...", 3);
 
             // This is the range within which the bot will attempt to loot.
-            const float LootRange = 200f;
+            const float LootRange = 50f;
 
             // Get a list of all VISIBLE item labels on the ground within loot range.
             // This relies on your custom, minimalist loot filter.
@@ -747,6 +849,12 @@ namespace Follower
                 {
                     LogMessage("Transition command received!", 3, SharpDX.Color.Aqua);
                     _transitionRequested = true;
+                }
+
+                else if (commandToProcess == "ACCEPT_INVITE")
+                {
+                    LogMessage("Accept Invite command received!", 3, SharpDX.Color.Aqua);
+                    _acceptInviteRequested = true;
                 }
             }
         }
