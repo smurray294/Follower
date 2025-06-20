@@ -80,7 +80,7 @@ namespace Follower
                 {
                     Name = "Enduring Cry",
                     Key = Keys.Q,      // Change this to whatever key you use for Enduring Cry
-                    Cooldown = 4f,   // The 4-second cooldown you mentioned
+                    Cooldown = Settings.WarcryCooldown.Value,   // The 4-second cooldown you mentioned
                     UseMode = SkillUseMode.OnCooldownInRange
                 });
 
@@ -88,7 +88,7 @@ namespace Follower
                 {
                     Name = "Ancestral Cry",
                     Key = Keys.W,      // Change this to whatever key you use for Enduring Cry
-                    Cooldown = 4f,   // The 4-second cooldown you mentioned
+                    Cooldown = Settings.WarcryCooldown.Value,  // The 4-second cooldown you mentioned
                     UseMode = SkillUseMode.OnCooldownInRange
                 });
 
@@ -96,7 +96,7 @@ namespace Follower
                 {
                     Name = "Battlemage's Cry",
                     Key = Keys.R,      // Change this to whatever key you use for Enduring Cry
-                    Cooldown = 4f,   // The 4-second cooldown you mentioned
+                    Cooldown = Settings.WarcryCooldown.Value,   // The 4-second cooldown you mentioned
                     UseMode = SkillUseMode.OnCooldownInRange
                 });
 
@@ -104,7 +104,7 @@ namespace Follower
                 {
                     Name = "Intimidating Cry",
                     Key = Keys.A,      // Change this to whatever key you use for Enduring Cry
-                    Cooldown = 4f,   // The 4-second cooldown you mentioned
+                    Cooldown = Settings.WarcryCooldown.Value,   // The 4-second cooldown you mentioned
                     UseMode = SkillUseMode.OnCooldownInRange
                 });
 
@@ -112,7 +112,7 @@ namespace Follower
                 {
                     Name = "Seismic Cry",
                     Key = Keys.F,      // Change this to whatever key you use for Enduring Cry
-                    Cooldown = 4f,   // The 4-second cooldown you mentioned
+                    Cooldown = Settings.WarcryCooldown.Value,   // The 4-second cooldown you mentioned
                     UseMode = SkillUseMode.OnCooldownInRange
                 });
 
@@ -120,7 +120,7 @@ namespace Follower
                 {
                     Name = "Warcry 6",
                     Key = Keys.D,      // Change this to whatever key you use for Enduring Cry
-                    Cooldown = 4f,   // The 4-second cooldown you mentioned
+                    Cooldown = Settings.WarcryCooldown.Value,   // The 4-second cooldown you mentioned
                     UseMode = SkillUseMode.OnCooldownInRange
                 });
             }
@@ -133,7 +133,6 @@ namespace Follower
                     Key = Keys.Q,
                     Cooldown = 0.8f,
                     UseMode = SkillUseMode.OffensiveTargetedAttack,
-                    Range = 500f // Look for enemies in a large radius
                     // We don't need to set HPPThreshold or ESPThreshold for this mode
                 });
             }
@@ -1472,9 +1471,11 @@ namespace Follower
             var bestTarget = GameController.EntityListWrapper.ValidEntitiesByType[EntityType.Monster]
                 .Where(x => 
                 {
+                    if (x == null || !x.IsAlive) return false;
+                    if (x.GetComponent<Life>()?.CurHP <= 0) return false;
                     // The checks remain the same, but now they call the correct HasStat method.
                     if (x?.GetComponent<Render>() == null || !x.IsHostile) return false;
-                    if (x.DistancePlayer >= skill.Range) return false;
+                    if (x.DistancePlayer >= Settings.TargetingRange.Value) return false;
                     if (!windowRect.Contains(Camera.WorldToScreen(x.Pos))) return false;
                     if (x.GetComponent<Targetable>()?.isTargetable != true) return false;
                     
@@ -1483,8 +1484,19 @@ namespace Follower
 
                     return true;
                 })
-                .OrderBy(x => x.DistancePlayer)
-                .FirstOrDefault();
+                .OrderByDescending(x => {
+                    // Assign a score based on rarity.
+                    var rarity = x.GetComponent<ObjectMagicProperties>()?.Rarity ?? MonsterRarity.White;
+                    switch (rarity)
+                    {
+                        case MonsterRarity.Unique:  return 5;
+                        case MonsterRarity.Rare:    return 4;
+                        case MonsterRarity.Magic:   return 3;
+                        default:                    return 1; // Normal monsters
+                    }
+                })
+                .ThenBy(x => x.DistancePlayer) // Tie-breaker: If rarity is the same, closest is best.
+                .FirstOrDefault(); // Get the single best target.
 
             return bestTarget;
         }

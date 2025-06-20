@@ -28,10 +28,18 @@ public class FollowerSettings : ISettings
     [Menu("Aurabot")] public ToggleNode Aurabot { get; set; } = new ToggleNode(false);
     [Menu("Druggery")] public ToggleNode Druggery { get; set; } = new ToggleNode(false);
 
-// Add these to a new "Debug" section in your settings menu if you like.
+    // Place this with your other skill-related settings
+    [Menu("Warcry Cooldown", "Cooldown in seconds for all Warcry skills.")]
+    public RangeNode<float> WarcryCooldown { get; set; } = new RangeNode<float>(3.8f, 0.1f, 10.0f);
+
+    [Menu("Targeting Skill Range", "The radius (in units) to search for monsters for targeted attacks.")]
+    public RangeNode<int> TargetingRange { get; set; } = new RangeNode<int>(500, 1, 1000);
+
+    // Add these to a new "Debug" section in your settings menu if you like.
     [Menu("Debug: Show Range Visualizer", "Draws a circle around the player to show a specific range.", 1000)]
     public ToggleNode ShowRangeVisualizer { get; set; } = new ToggleNode(false);
 
     [Menu("Debug: Visualizer Range", "The radius of the debug circle.", 1001, 1000)]
     public RangeNode<int> VisualizerRange { get; set; } = new RangeNode<int>(70, 10, 2000);
+    
 }
