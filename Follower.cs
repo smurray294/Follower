@@ -730,7 +730,7 @@ namespace Follower
                     LogMessage($"Clicking Ultimatum choice button at index {leaderChoiceIndex}...", 3, SharpDX.Color.Aqua);
                     yield return Mouse.SetCursorPosHuman(clickableButton.GetClientRect().Center, false);
                     yield return Mouse.LeftClick();
-                    yield return new WaitTime(300);
+                    yield return new WaitTime(1000);
 
                     // Click the main "Confirm" button.
                     var confirmButton = GameController.Game.IngameState.IngameUi.UltimatumPanel?.ConfirmButton;
