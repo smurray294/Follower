@@ -614,27 +614,20 @@ namespace Follower
 
         private IEnumerator HandleAcceptInvite()
         {
-            Element acceptButton = null;
+            // Declare a variable to hold our button. We will find it inside the try block.
+            Element acceptButton = null; 
 
             try
             {
-                var ui = GameController.Game.IngameState.IngameUi;
-                
-                // Step 1: Find the main notification panel.
-                var notificationPanel = ui.Children.FirstOrDefault(c => 
-                                            c.IsVisible == true && 
-                                            (c.GetChildFromIndices(0, 0)?.Text.Contains("sent you") == true));
-                
-                if (notificationPanel != null)
+                // --- STEP 1: FINDING LOGIC ONLY (INSIDE THE TRY BLOCK) ---
+                // This is the only part that can throw an exception if the UI changes.
+
+                var invitesPanel = GameController.Game.IngameState.IngameUi.InvitesPanel;
+
+                if (invitesPanel != null && invitesPanel.IsVisible == true && invitesPanel.ChildCount > 0)
                 {
-                    // Step 2: Search all children of that panel for the "Accept" button.
-                    var allChildren = new List<Element>();
-                    GetAllChildrenRecursive(notificationPanel, allChildren);
-                    
-                    acceptButton = allChildren.FirstOrDefault(child => 
-                                        child.IsVisible == true && 
-                                        child.Text != null && 
-                                        child.Text.Equals("Accept", StringComparison.OrdinalIgnoreCase));
+                    // Get the button and store it in our variable.
+                    acceptButton = invitesPanel.GetChildFromIndices(0, 2, 0);
                 }
             }
             catch (Exception e)
@@ -642,17 +635,19 @@ namespace Follower
                 LogError($"An error occurred while FINDING the invite button: {e.Message}", 5);
             }
 
-            // Step 3: Act on the result, outside the try/catch block.
-            if (acceptButton != null)
+            // --- STEP 2: ACTING LOGIC ONLY (OUTSIDE THE TRY BLOCK) ---
+            // Now we check the variable we found and act on it. This fixes the CS1626 errors.
+
+            if (acceptButton != null && acceptButton.IsVisible == true)
             {
-                LogMessage("Found 'Accept' button by text. Clicking...", 3, SharpDX.Color.LawnGreen);
+                LogMessage("Found 'Accept' button via direct path. Clicking...", 3, SharpDX.Color.LawnGreen);
                 yield return Mouse.SetCursorPosHuman(acceptButton.GetClientRect().Center, false);
                 yield return Mouse.LeftClick();
                 yield return new WaitTime(500);
             }
             else
             {
-                LogError("Could not find a visible party invite notification or its 'Accept' button.", 5);
+                LogError("InvitesPanel or its 'Accept' button was not found or not visible.", 5);
             }
         }
 
