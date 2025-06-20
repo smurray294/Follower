@@ -127,7 +127,7 @@ namespace Follower
 
             if (Settings.ManaGuardian)
             {
-                _skills.Add(new Skill 
+                _skills.Add(new Skill
                 {
                     Name = "Mine",
                     Key = Keys.Q,
@@ -252,15 +252,12 @@ namespace Follower
                         case SkillUseMode.OnCooldownInRange:
                             conditionsMet = true;
                             break;
-                            
-                        case SkillUseMode.OffensiveTargetedAttack:
-                            // Find the closest valid enemy within the skill's defined range.
-                            var target = GameController.EntityListWrapper.ValidEntitiesByType[EntityType.Monster]
-                                                        .Where(e => e.DistancePlayer < skill.Range)
-                                                        .OrderBy(e => e.DistancePlayer)
-                                                        .FirstOrDefault();
 
-                            // If we found a target, conditions are met.
+                        case SkillUseMode.OffensiveTargetedAttack:
+                            // Call our new helper function to find the best target.
+                            var target = GetBestOffensiveTarget(skill);
+
+                            // If the helper found a valid target, then conditions are met.
                             if (target != null)
                             {
                                 _skillTargetPosition = target.Pos; // Store its position for aiming
@@ -272,12 +269,12 @@ namespace Follower
                     if (conditionsMet)
                     {
                         LogMessage($"Casting skill '{skill.Name}' (Rule: {skill.UseMode})", 3, SharpDX.Color.LawnGreen);
-                        
+
                         // --- AIMING LOGIC for our new offensive mode ---
                         if (skill.UseMode == SkillUseMode.OffensiveTargetedAttack)
                         {
                             var targetScreenPos = Camera.WorldToScreen(_skillTargetPosition);
-                            
+
                             // Aim directly at the target's screen position
                             Mouse.SetCursorPos(targetScreenPos);
                         }
@@ -289,7 +286,7 @@ namespace Follower
 
                     // IMPORTANT: We only cast ONE skill per tick.
                     // Break the loop so we can re-evaluate priorities on the next frame.
-                    
+
                 }
             }
 
@@ -663,8 +660,8 @@ namespace Follower
         private IEnumerator HandleAcceptInvite()
         {
             LogMessage("-> Entering HandleAcceptInvite...", 3, SharpDX.Color.Yellow);
-            
-            Element acceptButton = null; 
+
+            Element acceptButton = null;
 
             try
             {
@@ -776,7 +773,7 @@ namespace Follower
             }
 
             LogMessage("Take Nearest Transition command received. Beginning transition attempts...", 3, SharpDX.Color.Aqua);
-            
+
             const int maxAttempts = 5;
             for (int attempt = 1; attempt <= maxAttempts; attempt++)
             {
@@ -784,7 +781,8 @@ namespace Follower
 
                 // --- STEP 2: Find the Nearest Portal (re-check on every attempt) ---
                 var nearestTransition = GameController.IngameState.IngameUi.ItemsOnGroundLabelsVisible
-                    .Where(label => {
+                    .Where(label =>
+                    {
                         // Get the metadata once and convert to lowercase for case-insensitive checks
                         string metadata = label.ItemOnGround.Metadata.ToLower();
 
@@ -1257,7 +1255,7 @@ namespace Follower
                 var playerPos = GameController.Player.Pos;
                 float radius = Settings.VisualizerRange.Value;
                 int segments = 36; // The number of line segments to use to approximate a circle. 36 is smooth.
-                
+
                 // Calculate the points of the circle
                 var points = new List<Vector2>();
                 for (int i = 0; i <= segments; i++)
@@ -1271,7 +1269,7 @@ namespace Follower
                         playerPos.Y + radius * (float)Math.Sin(rad),
                         playerPos.Z
                     );
-                    
+
                     // Convert the world position to a screen position
                     points.Add(Camera.WorldToScreen(worldPoint));
                 }
@@ -1279,7 +1277,7 @@ namespace Follower
                 // Draw the lines connecting the points
                 for (int i = 0; i < segments; i++)
                 {
-                    Graphics.DrawLine(points[i], points[i+1], 2, SharpDX.Color.Yellow);
+                    Graphics.DrawLine(points[i], points[i + 1], 2, SharpDX.Color.Yellow);
                 }
             }
 
@@ -1451,6 +1449,47 @@ namespace Follower
             }
         }
 
+        // Use this exact method. It is proven to work.
+        private static bool HasStat(Entity monster, GameStat stat)
+        {
+            try
+            {
+                // Using StatDictionary as per the working example.
+                var value = monster?.GetComponent<Stats>()?.StatDictionary?[stat];
+                return value > 0;
+            }
+            catch (Exception)
+            {
+                // The try/catch handles any errors if the entity or component becomes invalid during the check.
+                return false;
+            }
+        }
+
+        private Entity GetBestOffensiveTarget(Skill skill)
+        {
+            var windowRect = GameController.Window.GetWindowRectangleTimeCache;
+
+            var bestTarget = GameController.EntityListWrapper.ValidEntitiesByType[EntityType.Monster]
+                .Where(x => 
+                {
+                    // The checks remain the same, but now they call the correct HasStat method.
+                    if (x?.GetComponent<Render>() == null || !x.IsHostile) return false;
+                    if (x.DistancePlayer >= skill.Range) return false;
+                    if (!windowRect.Contains(Camera.WorldToScreen(x.Pos))) return false;
+                    if (x.GetComponent<Targetable>()?.isTargetable != true) return false;
+                    
+                    // This now calls the correct, robust helper function.
+                    if (HasStat(x, GameStat.CannotBeDamaged)) return false;
+
+                    return true;
+                })
+                .OrderBy(x => x.DistancePlayer)
+                .FirstOrDefault();
+
+            return bestTarget;
+        }
+
+
         #endregion
     }
 
@@ -1474,5 +1513,7 @@ namespace Follower
         public DateTime NextUseTime { get; set; } = DateTime.Now;
         public SkillUseMode UseMode { get; set; }
     }
+    
+    
 
 }
