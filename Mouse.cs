@@ -82,6 +82,18 @@ namespace Follower
                 SetCursorPos(targetPos);
         }
 
+        public static IEnumerator MultiLeftClick(int clickCount = 3, int delayBetweenClicks = 30)
+        {
+            for (int i = 0; i < clickCount; i++)
+            {
+                // Use the existing reliable LeftClick coroutine
+                yield return LeftClick();
+                
+                // A very small pause between the clicks
+                yield return new WaitTime(delayBetweenClicks);
+            }
+        }
+
         /// <summary>
         /// Moves the mouse to a position and then left-clicks.
         /// </summary>

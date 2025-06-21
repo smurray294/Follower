@@ -626,8 +626,27 @@ namespace Follower
                     {
                         case TaskNodeType.Movement:
 
-                            if (Settings.IsDashEnabled && CheckDashTerrain(currentTask.WorldPosition.WorldToGrid()))
-                                yield return null;
+                            if (currentTask.AttemptCount > 3 && Settings.IsDashEnabled)
+                            {
+                                // Check if a dash would solve the problem.
+                                if (CanDashToUnstuck(currentTask.WorldPosition))
+                                {
+                                    LogMessage("Stuck! Attempting a dash to break free...", 3, SharpDX.Color.LawnGreen);
+
+                                    // Aim at the final destination, not just over the obstacle.
+                                    Mouse.SetCursorPos(WorldToValidScreenPosition(currentTask.WorldPosition));
+                                    yield return new WaitTime(50); // Small pause for cursor to settle.
+                                    
+                                    Keyboard.KeyPress(Settings.DashKey.Value);
+                                    
+                                    // CRUCIAL: Reset the attempt count to prevent a dash loop.
+                                    currentTask.AttemptCount = 0; 
+
+                                    yield return new WaitTime(300); // Wait for the dash animation to complete.
+                                    continue; // Immediately restart the main loop to re-evaluate our new position.
+                                }
+                            }
+
                             yield return Mouse.SetCursorPosHuman(WorldToValidScreenPosition(currentTask.WorldPosition));
                             yield return new WaitTime(random.Next(25) + 30);
                             Input.KeyDown(Settings.MovementKey);
@@ -714,10 +733,49 @@ namespace Follower
 
         // Your existing Render method goes here, no changes needed.
 
+        private bool CanDashToUnstuck(Vector3 target)
+        {
+            if (_tiles == null) return false;
+
+            var playerGridPos = GameController.Player.GridPos;
+            var targetGridPos = target.WorldToGrid();
+            var direction = Vector2.Normalize(targetGridPos - playerGridPos);
+
+            // We only need to check a short "dash distance" ahead of the player.
+            const int dashCheckDistance = 80;
+
+            for (int i = 10; i < dashCheckDistance; i++) // Start checking a few units away
+            {
+                var pointToCheck = playerGridPos + i * direction;
+                var point = new System.Drawing.Point((int)pointToCheck.X, (int)pointToCheck.Y);
+
+                // Safety check for array bounds
+                if (point.X < 0 || point.X >= _numCols || point.Y < 0 || point.Y >= _numRows) return false;
+
+                var tile = _tiles[point.X, point.Y];
+
+                // If we find dashable terrain, it's a perfect opportunity.
+                if (tile == 2)
+                {
+                    LogMessage("Dash path is clear to get unstuck.", 3, SharpDX.Color.Aqua);
+                    return true;
+                }
+                
+                // If we find a solid wall right in front of us, do not dash.
+                if (tile == 255)
+                {
+                    return false;
+                }
+            }
+
+            // If we scanned the whole distance and found nothing but walkable ground, no need to dash.
+            return false;
+        }
+
         private IEnumerator HandleGoToHideout()
         {
             LogMessage("Go To Hideout command received. Looking for a portal...", 3, SharpDX.Color.LawnGreen);
-            
+
             const int maxAttempts = 5;
             for (int attempt = 1; attempt <= maxAttempts; attempt++)
             {
@@ -731,17 +789,18 @@ namespace Follower
                 if (portal == null)
                 {
                     LogError($"Attempt #{attempt}: No portals found. Retrying in 1s...", 5);
-                    yield return new WaitTime(1000);
+                    yield return new WaitTime(500);
                     continue; // Go to the next iteration of the for loop
                 }
 
                 // We found a portal, let's click it.
                 LogMessage($"Attempt #{attempt}: Found portal. Clicking...", 3);
                 yield return Mouse.SetCursorPosHuman(portal.Label.GetClientRect().Center, false);
-                yield return Mouse.LeftClick();
+                yield return new WaitTime(50);
+                yield return Mouse.MultiLeftClick();
 
                 // Wait a significant time for the loading screen.
-                yield return new WaitTime(3000);
+                yield return new WaitTime(1000);
 
                 // --- VERIFY SUCCESS ---
                 // The ultimate proof of success is that we are now in a hideout.
@@ -835,7 +894,7 @@ namespace Follower
                     // Click the choice
                     yield return Mouse.SetCursorPosHuman(clickableButton.GetClientRect().Center, false);
                     yield return new WaitTime(50);
-                    yield return Mouse.LeftClick();
+                    yield return Mouse.MultiLeftClick();
                     yield return new WaitTime(250);
                 }
                 else
@@ -848,7 +907,7 @@ namespace Follower
                     // Click confirm
                     yield return Mouse.SetCursorPosHuman(confirmButton.GetClientRect().Center, false);
                     yield return new WaitTime(50);
-                    yield return Mouse.LeftClick();
+                    yield return Mouse.MultiLeftClick();
                     yield return new WaitTime(250);
                 }
                 
