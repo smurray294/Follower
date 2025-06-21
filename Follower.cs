@@ -626,25 +626,14 @@ namespace Follower
                     {
                         case TaskNodeType.Movement:
 
-                            if (currentTask.AttemptCount > 3 && Settings.IsDashEnabled)
+                            if (Settings.IsDashEnabled && CanDashToUnstuck(currentTask.WorldPosition))
                             {
-                                // Check if a dash would solve the problem.
-                                if (CanDashToUnstuck(currentTask.WorldPosition))
-                                {
-                                    LogMessage("Stuck! Attempting a dash to break free...", 3, SharpDX.Color.LawnGreen);
+                                LogMessage("Dashable terrain detected. Dashing instead of walking.", 3, SharpDX.Color.Aqua);
 
-                                    // Aim at the final destination, not just over the obstacle.
-                                    Mouse.SetCursorPos(WorldToValidScreenPosition(currentTask.WorldPosition));
-                                    yield return new WaitTime(50); // Small pause for cursor to settle.
-                                    
-                                    Keyboard.KeyPress(Settings.DashKey.Value);
-                                    
-                                    // CRUCIAL: Reset the attempt count to prevent a dash loop.
-                                    currentTask.AttemptCount = 0; 
-
-                                    yield return new WaitTime(300); // Wait for the dash animation to complete.
-                                    continue; // Immediately restart the main loop to re-evaluate our new position.
-                                }
+                                // Aim at the final destination and perform the dash.
+                                Mouse.SetCursorPos(WorldToValidScreenPosition(currentTask.WorldPosition));                                
+                                Keyboard.KeyPress(Settings.DashKey.Value);
+                                //continue; // Immediately restart the main loop
                             }
 
                             yield return Mouse.SetCursorPosHuman(WorldToValidScreenPosition(currentTask.WorldPosition));
@@ -661,6 +650,28 @@ namespace Follower
                             else
                             {
                                 currentTask.AttemptCount++;
+
+                                // if (currentTask.AttemptCount > 3 && Settings.IsDashEnabled)
+                                // {
+                                //     // Check if a dash would solve the problem.
+                                //     if (CanDashToUnstuck(currentTask.WorldPosition))
+                                //     {
+                                //         LogMessage("Stuck! Attempting a dash to break free...", 3, SharpDX.Color.LawnGreen);
+
+                                //         // Aim at the final destination, not just over the obstacle.
+                                //         Mouse.SetCursorPos(WorldToValidScreenPosition(currentTask.WorldPosition));
+                                //         yield return new WaitTime(50); // Small pause for cursor to settle.
+                                        
+                                //         Keyboard.KeyPress(Settings.DashKey.Value);
+                                        
+                                //         // CRUCIAL: Reset the attempt count to prevent a dash loop.
+                                //         currentTask.AttemptCount = 0; 
+
+                                //         yield return new WaitTime(300); // Wait for the dash animation to complete.
+                                //         continue; // Immediately restart the main loop to re-evaluate our new position.
+                                //     }
+                                // }
+
                                 if (currentTask.AttemptCount > 5)
                                 {
                                     var transition4 = GetBestPortalToFollow(leaderPartyElement);
