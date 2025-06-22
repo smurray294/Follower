@@ -626,7 +626,7 @@ namespace Follower
                     {
                         case TaskNodeType.Movement:
 
-                            if (Settings.IsDashEnabled && CanDashToUnstuck(currentTask.WorldPosition))
+                            if (Settings.IsDashEnabled && CheckDashTerrain(currentTask.WorldPosition.WorldToGrid()))
                             {
                                 LogMessage("Dashable terrain detected. Dashing instead of walking.", 3, SharpDX.Color.Aqua);
 
@@ -744,42 +744,56 @@ namespace Follower
 
         // Your existing Render method goes here, no changes needed.
 
-        private bool CanDashToUnstuck(Vector3 target)
+// Add this method to Follower.cs
+        private bool CheckDashTerrain(Vector2 targetPosition)
         {
             if (_tiles == null) return false;
 
             var playerGridPos = GameController.Player.GridPos;
-            var targetGridPos = target.WorldToGrid();
-            var direction = Vector2.Normalize(targetGridPos - playerGridPos);
+            var dir = targetPosition - playerGridPos;
+            dir.Normalize();
 
-            // We only need to check a short "dash distance" ahead of the player.
-            const int dashCheckDistance = 80;
+            var distanceBeforeWall = 0;
+            var distanceInWall = 0;
+            var shouldDash = false;
+            var points = new List<System.Drawing.Point>();
 
-            for (int i = 10; i < dashCheckDistance; i++) // Start checking a few units away
+            for (var i = 0; i < 500; i++)
             {
-                var pointToCheck = playerGridPos + i * direction;
-                var point = new System.Drawing.Point((int)pointToCheck.X, (int)pointToCheck.Y);
+                var v2Point = playerGridPos + i * dir;
+                var point = new System.Drawing.Point((int)(playerGridPos.X + i * dir.X), (int)(playerGridPos.Y + i * dir.Y));
 
-                // Safety check for array bounds
-                if (point.X < 0 || point.X >= _numCols || point.Y < 0 || point.Y >= _numRows) return false;
+                if (points.Contains(point)) continue;
+                if (Vector2.Distance(v2Point, targetPosition) < 2) break;
 
+                points.Add(point);
                 var tile = _tiles[point.X, point.Y];
 
-                // If we find dashable terrain, it's a perfect opportunity.
-                if (tile == 2)
+                if (tile == 255) { shouldDash = false; break; }
+                else if (tile == 2)
                 {
-                    LogMessage("Dash path is clear to get unstuck.", 3, SharpDX.Color.Aqua);
-                    return true;
+                    if (shouldDash) distanceInWall++;
+                    shouldDash = true;
                 }
-                
-                // If we find a solid wall right in front of us, do not dash.
-                if (tile == 255)
+                else if (!shouldDash)
                 {
-                    return false;
+                    distanceBeforeWall++;
+                    if (distanceBeforeWall > 10) break;
                 }
             }
 
-            // If we scanned the whole distance and found nothing but walkable ground, no need to dash.
+            if (distanceBeforeWall > 10 || distanceInWall < 5)
+            {
+                shouldDash = false;
+            }
+
+            if (shouldDash)
+            {
+                // We press the key in the main logic, not in the helper.
+                // This function's only job is to return true or false.
+                return true;
+            }
+
             return false;
         }
 
@@ -1049,7 +1063,7 @@ namespace Follower
         {
             // --- STEP 1: Initial Sanity Check ---
             var leader = GetFollowingTarget();
-            if (leader != null && leader.DistancePlayer < 200)
+            if (leader != null && leader.DistancePlayer < 100)
             {
                 LogMessage("Already very close to leader. Ignoring transition command.", 3, SharpDX.Color.Yellow);
                 yield break;
@@ -1339,66 +1353,66 @@ namespace Follower
             }
         }
 
-        private bool CheckDashTerrain(Vector2 targetPosition)
-        {
-            if (_tiles == null) return false;
+        // private bool CheckDashTerrain(Vector2 targetPosition)
+        // {
+        //     if (_tiles == null) return false;
 
-            var playerGridPos = GameController.Player.GridPos;
-            var dir = Vector2.Normalize(targetPosition - playerGridPos);
+        //     var playerGridPos = GameController.Player.GridPos;
+        //     var dir = Vector2.Normalize(targetPosition - playerGridPos);
 
-            var distanceBeforeWall = 0;
-            var distanceInWall = 0;
-            var shouldDash = false;
-            var points = new HashSet<System.Drawing.Point>();
+        //     var distanceBeforeWall = 0;
+        //     var distanceInWall = 0;
+        //     var shouldDash = false;
+        //     var points = new HashSet<System.Drawing.Point>();
 
-            for (var i = 0; i < 500; i++) // Check up to 500 units away
-            {
-                var currentGridPos = playerGridPos + i * dir;
-                if (Vector2.Distance(currentGridPos, targetPosition) < 2) break;
+        //     for (var i = 0; i < 500; i++) // Check up to 500 units away
+        //     {
+        //         var currentGridPos = playerGridPos + i * dir;
+        //         if (Vector2.Distance(currentGridPos, targetPosition) < 2) break;
 
-                var point = new System.Drawing.Point((int)currentGridPos.X, (int)currentGridPos.Y);
-                if (points.Contains(point)) continue;
-                points.Add(point);
+        //         var point = new System.Drawing.Point((int)currentGridPos.X, (int)currentGridPos.Y);
+        //         if (points.Contains(point)) continue;
+        //         points.Add(point);
 
-                // Bounds check for the tiles array
-                if (point.X < 0 || point.X >= _numCols || point.Y < 0 || point.Y >= _numRows)
-                {
-                    shouldDash = false;
-                    break;
-                }
+        //         // Bounds check for the tiles array
+        //         if (point.X < 0 || point.X >= _numCols || point.Y < 0 || point.Y >= _numRows)
+        //         {
+        //             shouldDash = false;
+        //             break;
+        //         }
 
-                var tile = _tiles[point.X, point.Y];
+        //         var tile = _tiles[point.X, point.Y];
 
-                if (tile == 255) // Impassable wall
-                {
-                    shouldDash = false;
-                    break;
-                }
-                else if (tile == 2) // Dashable obstacle
-                {
-                    if (shouldDash) distanceInWall++;
-                    shouldDash = true;
-                }
-                else if (!shouldDash) // Walkable ground
-                {
-                    distanceBeforeWall++;
-                    if (distanceBeforeWall > 10) break; // Don't dash if there's a long walkable path first
-                }
-            }
+        //         if (tile == 255) // Impassable wall
+        //         {
+        //             shouldDash = false;
+        //             break;
+        //         }
+        //         else if (tile == 2) // Dashable obstacle
+        //         {
+        //             if (shouldDash) distanceInWall++;
+        //             shouldDash = true;
+        //         }
+        //         else if (!shouldDash) // Walkable ground
+        //         {
+        //             distanceBeforeWall++;
+        //             if (distanceBeforeWall > 10) break; // Don't dash if there's a long walkable path first
+        //         }
+        //     }
 
-            if (distanceBeforeWall > 10 || distanceInWall < 5)
-                shouldDash = false;
+        //     if (distanceBeforeWall > 10 || distanceInWall < 5)
+        //         shouldDash = false;
 
-            if (shouldDash)
-            {
-                Mouse.SetCursorPos(WorldToValidScreenPosition(targetPosition.GridToWorld(GameController.Player.Pos.Z)));
-                Thread.Sleep(50 + random.Next(Settings.BotInputFrequency));
-                Input.KeyPress(Settings.DashKey.Value);
-                return true;
-            }
+        //     if (shouldDash)
+        //     {
+        //         Mouse.SetCursorPos(WorldToValidScreenPosition(targetPosition.GridToWorld(GameController.Player.Pos.Z)));
+        //         Thread.Sleep(50 + random.Next(Settings.BotInputFrequency));
+        //         Input.KeyPress(Settings.DashKey.Value);
+        //         return true;
+        //     }
 
-            return false;
-        }
+        //     return false;
+        // }
 
         private Entity GetFollowingTarget()
         {
