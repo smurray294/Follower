@@ -1130,37 +1130,53 @@ namespace Follower
 
         private IEnumerator HandleLooting()
         {
-            // ... (your existing code for stopping movement and logging) ...
+            // Make sure we stop moving before we start looting.
+            Input.KeyUp(Settings.MovementKey);
+            yield return new WaitTime(100);
 
-            var windowRect = GameController.Window.GetWindowRectangle();
+            LogMessage("Scanning for visible items to loot...", 3);
 
+            // This is the range within which the bot will attempt to loot.
+            const float LootRange = 50f;
+
+            // Get a list of all VISIBLE item labels on the ground within loot range.
+            // This relies on your custom, minimalist loot filter.
             var itemsToLoot = GameController.IngameState.IngameUi.ItemsOnGroundLabelsVisible
-                .Where(label => {
-                    // First, get the WorldItem component.
-                    var worldItem = label.ItemOnGround.GetComponent<WorldItem>();
-                    if (worldItem == null) return false;
+                                .Where(label => label.ItemOnGround.DistancePlayer < LootRange)
+                                .OrderBy(label => label.ItemOnGround.DistancePlayer) // Loot closest first
+                                .ToList();
 
-                    // --- THIS IS THE NEW, DEFINITIVE ALLOCATION CHECK ---
-                    // We skip the item if it has a permanent or short allocation to someone else.
-                    if (worldItem.LootAllocation == LootAllocationEnum.PermanentAllocation ||
-                        worldItem.LootAllocation == LootAllocationEnum.ShortAllocation)
-                    {
-                        return false;
-                    }
+            if (!itemsToLoot.Any())
+            {
+                LogMessage("No visible items found in range.", 3, SharpDX.Color.Yellow);
+                yield break; // Exit the coroutine immediately
+            }
 
-                    // The rest of our checks remain the same.
-                    var labelCenter = label.Label.GetClientRect().Center;
-                    return windowRect.Contains(labelCenter);
-                })
-                .OrderBy(label => {
-                    // Sorting logic remains the same
-                    var labelCenter = label.Label.GetClientRect().Center;
-                    var playerScreenPos = new Vector2(windowRect.Width / 2, windowRect.Height);
-                    return Vector2.Distance(labelCenter, playerScreenPos);
-                })
-                .ToList();
+            LogMessage($"Found {itemsToLoot.Count} items to loot. Starting pickup loop.", 3, SharpDX.Color.LawnGreen);
 
-            // ... (The rest of your looting loop remains exactly the same) ...
+            // Loop through each found item and pick it up sequentially.
+            foreach (var label in itemsToLoot)
+            {
+                // Double-check the label is still valid before we act
+                if (!label.IsVisible || !label.ItemOnGround.IsTargetable)
+                {
+                    continue; // This item was already picked up, skip to the next one
+                }
+
+                LogMessage($"Looting {label.ItemOnGround.GetComponent<WorldItem>()?.ItemEntity.GetComponent<Base>()?.Name}", 2);
+
+                // Move the mouse to the item's label
+                yield return Mouse.SetCursorPosHuman(label.Label.GetClientRect().Center, false);
+                yield return new WaitTime(50); // Small pause for realism
+
+                yield return Mouse.LeftClick();
+
+
+                // Wait a moment for the pickup animation to complete before moving to the next item
+                yield return new WaitTime(300);
+            }
+
+            LogMessage("Looting complete.", 3);
         }
 
         public bool Gcd()
