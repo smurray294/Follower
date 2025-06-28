@@ -231,6 +231,7 @@ namespace Follower
 
             if (Settings.AutoLevelGems.Value && !_isLevelingGem)
             {
+                if (_isHandlingUltimatum) return null;
                 var gemsToLvlUpElements = GetLevelableGems();
                 if (gemsToLvlUpElements.Any())
                 {
@@ -248,6 +249,8 @@ namespace Follower
             if (Settings.IsFollowEnabled && _botCoroutine != null && !_botCoroutine.IsDone && GameController.Player.IsAlive)
             {
 
+
+                if (_isHandlingUltimatum) return null;
                 // --- NEW: The Area Check Gatekeeper ---
                 var currentArea = GameController.Area.CurrentArea;
                 var localFollowTarget = GetFollowingTarget();
@@ -1073,7 +1076,7 @@ namespace Follower
         {
             // --- STEP 1: Initial Sanity Check ---
             var leader = GetFollowingTarget();
-            if (leader != null && leader.DistancePlayer < 100)
+            if (leader != null && leader.DistancePlayer < 70)
             {
                 LogMessage("Already very close to leader. Ignoring transition command.", 3, SharpDX.Color.Yellow);
                 yield break;
