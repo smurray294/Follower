@@ -128,6 +128,16 @@ namespace Follower
                     Cooldown = Settings.WarcryCooldown.Value,   // The 4-second cooldown you mentioned
                     UseMode = SkillUseMode.OnCooldownInRange
                 });
+
+                _skills.Add(new Skill
+                {
+                    Name = "Mine",
+                    Key = Keys.7,
+                    Cooldown = 0.4f,
+                    UseMode = SkillUseMode.OffensiveTargetedAttack,
+                    // We don't need to set HPPThreshold or ESPThreshold for this mode
+                });
+
             }
 
             if (Settings.ManaGuardian)

@@ -19,3 +19,9 @@ obj/Follower.csproj.nuget.g.targets
 obj/project.assets.json
 obj/project.nuget.cache
 fur.ahk
+obj/Debug/net8.0-windows/.NETCoreApp,Version=v8.0.AssemblyAttributes.cs
+obj/Debug/net8.0-windows/Follower.AssemblyInfo.cs
+obj/Debug/net8.0-windows/Follower.AssemblyInfoInputs.cache
+obj/Debug/net8.0-windows/Follower.assets.cache
+obj/Debug/net8.0-windows/Follower.csproj.AssemblyReference.cache
+obj/Debug/net8.0-windows/Follower.GeneratedMSBuildEditorConfig.editorconfig
