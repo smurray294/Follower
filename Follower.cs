@@ -421,6 +421,16 @@ namespace Follower
         {
             while (true) // The main loop will now run very fast
             {
+
+                if (_isHandlingUltimatum)
+                {
+                    // If another system is handling a critical action, this coroutine
+                    // will do nothing but wait politely until it's finished.
+                    yield return new WaitTime(100);
+                    continue; // Skip all follow/movement logic and check again on the next loop.
+                }
+
+
                 // --- High-Priority Checks (Run Every Pass) ---
                 if (!GameController.Player.IsAlive || GameController.IsLoading)
                 {
