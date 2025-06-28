@@ -132,7 +132,7 @@ namespace Follower
                 _skills.Add(new Skill
                 {
                     Name = "Mine",
-                    Key = Keys.7,
+                    Key = Keys.D7,
                     Cooldown = 0.4f,
                     UseMode = SkillUseMode.OffensiveTargetedAttack,
                     // We don't need to set HPPThreshold or ESPThreshold for this mode
