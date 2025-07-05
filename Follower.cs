@@ -58,6 +58,10 @@ namespace Follower
 
         private bool _isLevelingGem = false;
 
+        private const string RITUAL_ALTAR_METADATA = "Metadata/Terrain/Leagues/Ritual/RitualRuneInteractable";
+        private const int RITUAL_CHECK_RANGE = 100;
+        private const int RITUAL_CHECK_RANGE_SQUARED = RITUAL_CHECK_RANGE * RITUAL_CHECK_RANGE;
+
 
         private const int Delay = 75;
 
@@ -81,12 +85,23 @@ namespace Follower
 
             if (Settings.CryBot)
             {
+
+                _skills.Add(new Skill {
+                    Name = "Vaal Clarity",
+                    Key = Keys.D6,
+                    UseMode = SkillUseMode.AsSoonAsPossible,
+                    InternalName = "vaal_clarity",
+                    InternalBuffName = "vaal_aura_no_mana_cost", // The buff name for Vaal Clarity
+                    IsRitualOnly = true // This skill is special
+                });
+    
                 _skills.Add(new Skill
                 {
                     Name = "Enduring Cry",
                     Key = Keys.Q,      // Change this to whatever key you use for Enduring Cry
-                    Cooldown = Settings.WarcryCooldown.Value,   // The 4-second cooldown you mentioned
-                    UseMode = SkillUseMode.OnCooldownInRange
+                    //Cooldown = Settings.WarcryCooldown.Value,   // The 4-second cooldown you mentioned
+                    UseMode = SkillUseMode.AsSoonAsPossible,
+                    InternalName = "enduring_cry"
                 });
 
                 _skills.Add(new Skill
@@ -280,10 +295,17 @@ namespace Follower
                     return null; // Don't try to cast if we're already busy.
                 }
 
+                bool inRitual = IsInRitualEncounter();
+
                 // Go through our list of skills in order of priority.
                 foreach (var skill in _skills)
                 {
                     // --- The Checklist ---
+
+                    if (skill.IsRitualOnly && !inRitual)
+                    {
+                        continue;
+                    }
 
                     // 1. Is the skill on cooldown?
                     if (DateTime.Now < skill.NextUseTime)
@@ -304,6 +326,9 @@ namespace Follower
                         continue; // Skip to the next skill.
                     }
 
+                    var actorSkills = actor.ActorSkills;
+                    if (actorSkills == null) return null;
+
                     bool conditionsMet = false;
                     switch (skill.UseMode)
                     {
@@ -318,7 +343,7 @@ namespace Follower
                                 continue;
                             }
                             // Call our new helper function to find the best target.
-                                var target = GetBestOffensiveTarget(skill);
+                            var target = GetBestOffensiveTarget(skill);
 
                             // If the helper found a valid target, then conditions are met.
                             if (target != null)
@@ -326,6 +351,30 @@ namespace Follower
                                 _skillTargetPosition = target.Pos; // Store its position for aiming
                                 conditionsMet = true;
                             }
+                            break;
+
+                        case SkillUseMode.AsSoonAsPossible:
+                            // Find the specific skill in the actor's skill list by its internal name.
+
+
+
+                            var actorSkill = actorSkills.FirstOrDefault(s => s.InternalName == skill.InternalName);
+
+                            var buffCheck = true;
+                            
+                            if (skill.InternalName == "vaal_clarity")
+                            {
+                                var activeBuffs = GameController.Player.GetComponent<Buffs>()?.BuffsList;
+                                buffCheck = !HasBuff(activeBuffs, skill.InternalBuffName);
+                            } 
+                            // If we found the skill and the game says it can be used, we're good to go.
+                            if (actorSkill != null && actorSkill.CanBeUsed && buffCheck)
+                            {
+                                conditionsMet = true;
+                            }
+
+                            
+
                             break;
                     }
 
@@ -767,7 +816,62 @@ namespace Follower
 
         // Your existing Render method goes here, no changes needed.
 
-// Add this method to Follower.cs
+        // Add this method to Follower.cs
+
+        // This is your proven helper method, copied directly from RitualChecker.
+
+        /// <summary>
+        /// Checks if a specific buff is present in a list of active buffs.
+        /// This check is case-insensitive.
+        /// </summary>
+        /// <param name="activeBuffs">The list of buffs to search through.</param>
+        /// <param name="buffNameToFind">The internal name of the buff to find.</param>
+        /// <returns>True if the buff is found, otherwise false.</returns>
+        private bool HasBuff(List<Buff> activeBuffs, string buffNameToFind)
+        {
+            // It's good practice to check if the list is valid before searching.
+            if (activeBuffs == null || activeBuffs.Count == 0)
+            {
+                return false;
+            }
+
+            // Use LINQ's .Any() method to efficiently check if any buff in the list
+            // matches the name we're looking for, ignoring case.
+            return activeBuffs.Any(buff => buff.Name.Equals(buffNameToFind, StringComparison.OrdinalIgnoreCase));
+        }
+
+        private bool IsInRitualEncounter()
+        {
+            var playerPos = GameController.Player.GridPos;
+            // The ritual is active if the closest altar's state is 2.
+            return GetNearestRitualState(playerPos) == 2;
+        }
+
+        private int GetNearestRitualState(Vector2 playerPos)
+        {
+            try
+            {
+                var closestAltar = GameController.EntityListWrapper.Entities
+                    .Where(e => e.Metadata == RITUAL_ALTAR_METADATA &&
+                                (e.GridPos - playerPos).LengthSquared() < RITUAL_CHECK_RANGE_SQUARED)
+                    .OrderBy(e => (e.GridPos - playerPos).LengthSquared())
+                    .FirstOrDefault();
+
+                if (closestAltar == null) return 0; // No altar found
+
+                var stateMachine = closestAltar.GetComponent<StateMachine>();
+                if (stateMachine == null || stateMachine.States.Count == 0) return 0;
+
+                // This is the key logic you found: reading the value from the States list.
+                return (int)stateMachine.States[0].Value;
+            }
+            catch (Exception e)
+            {
+                LogError($"Error checking Ritual state: {e.Message}", 5);
+                return 0; // Return 0 (None) if any error occurs
+            }
+        }
+
         private bool CheckDashTerrain(Vector2 targetPosition)
         {
             if (_tiles == null) return false;
@@ -1837,7 +1941,9 @@ namespace Follower
         OnCooldown,         // Use whenever it's off cooldown (e.g., for a temporary buff like Blood Rage)
         OnCooldownInRange,  // Use whenever it's off cooldown, BUT only if close to the leader (for War Cries)
         OnMonstersInRange,   // Use when a certain number of monsters are nearby (for attacks or curses)
-        OffensiveTargetedAttack // <-- NEW
+        OffensiveTargetedAttack, // <-- NEW
+        AsSoonAsPossible // <-- NEW: Use whenever the game's CanBeUsed flag is true
+
     }
 
     // Place this at the bottom of your Follower.cs file, inside the namespace
@@ -1850,6 +1956,10 @@ namespace Follower
         public float Range { get; set; } // Cooldown in seconds
         public DateTime NextUseTime { get; set; } = DateTime.Now;
         public SkillUseMode UseMode { get; set; }
+        public string InternalName { get; set; } // The internal name from DevTree
+        public string InternalBuffName { get; set; } // The internal name for the buff, if applicable
+
+        public bool IsRitualOnly { get; set; } = false; // Default to false
     }
     
     
