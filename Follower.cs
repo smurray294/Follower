@@ -62,6 +62,8 @@ namespace Follower
         private const int RITUAL_CHECK_RANGE = 100;
         private const int RITUAL_CHECK_RANGE_SQUARED = RITUAL_CHECK_RANGE * RITUAL_CHECK_RANGE;
 
+        private bool _isCastingVaalClaritySequence = false;
+
 
         private const int Delay = 75;
 
@@ -169,6 +171,15 @@ namespace Follower
 
             if (Settings.Druggery)
             {
+                _skills.Add(new Skill {
+                    Name = "Vaal Clarity",
+                    Key = Keys.D6,
+                    UseMode = SkillUseMode.AsSoonAsPossible,
+                    InternalName = "vaal_clarity",
+                    InternalBuffName = "vaal_aura_no_mana_cost", // The buff name for Vaal Clarity
+                    IsRitualOnly = true // This skill is special
+                });
+
                 _skills.Add(new Skill
                 {
                     Name = "Mine",
@@ -185,7 +196,7 @@ namespace Follower
                 {
                     Name = "Mine",
                     Key = Keys.Q,
-                    Cooldown = 2.5f,
+                    Cooldown = 0.8f,
                     UseMode = SkillUseMode.OffensiveTargetedAttack,
                     // We don't need to set HPPThreshold or ESPThreshold for this mode
                 });
@@ -196,6 +207,27 @@ namespace Follower
                     Key = Keys.W,
                     Cooldown = 3f,
                     UseMode = SkillUseMode.OnCooldownInRange
+                    // We don't need to set HPPThreshold or ESPThreshold for this mode
+                });
+            }
+
+            if (Settings.Culler)
+            {
+                _skills.Add(new Skill {
+                    Name = "Vaal Clarity",
+                    Key = Keys.D6,
+                    UseMode = SkillUseMode.AsSoonAsPossible,
+                    InternalName = "vaal_clarity",
+                    InternalBuffName = "vaal_aura_no_mana_cost", // The buff name for Vaal Clarity
+                    IsRitualOnly = true // This skill is special
+                });
+
+                _skills.Add(new Skill
+                {
+                    Name = "Mine",
+                    Key = Keys.Q,
+                    Cooldown = 0.3f,
+                    UseMode = SkillUseMode.OffensiveTargetedAttack,
                     // We don't need to set HPPThreshold or ESPThreshold for this mode
                 });
             }
@@ -354,27 +386,27 @@ namespace Follower
                             break;
 
                         case SkillUseMode.AsSoonAsPossible:
-                            // Find the specific skill in the actor's skill list by its internal name.
-
-
-
                             var actorSkill = actorSkills.FirstOrDefault(s => s.InternalName == skill.InternalName);
-
-                            var buffCheck = true;
                             
-                            if (skill.InternalName == "vaal_clarity")
+                            // Initial check: Is the skill usable right now?
+                            if (actorSkill != null && actorSkill.CanBeUsed)
                             {
-                                var activeBuffs = GameController.Player.GetComponent<Buffs>()?.BuffsList;
-                                buffCheck = !HasBuff(activeBuffs, skill.InternalBuffName);
-                            } 
-                            // If we found the skill and the game says it can be used, we're good to go.
-                            if (actorSkill != null && actorSkill.CanBeUsed && buffCheck)
-                            {
-                                conditionsMet = true;
+                                // Special handling for our Vaal Clarity sequence
+                                if (skill.InternalName == "vaal_clarity")
+                                {
+                                    var vaal_clarity_up = HasBuff(GameController.Player.GetComponent<Buffs>()?.BuffsList, skill.InternalName);
+                                    // If we are not already running the sequence, start it.
+                                    if (!_isCastingVaalClaritySequence && !vaal_clarity_up)
+                                    {
+                                        var clarityCoroutine = new Coroutine(HandleVaalClarityCasting(skill), this, "VaalClaritySequence");
+                                        Core.ParallelRunner.Run(clarityCoroutine);
+                                    }
+                                }
+                                else // For all other "AsSoonAsPossible" skills
+                                {
+                                    conditionsMet = true; // Use them immediately
+                                }
                             }
-
-                            
-
                             break;
                     }
 
@@ -827,6 +859,50 @@ namespace Follower
         /// <param name="activeBuffs">The list of buffs to search through.</param>
         /// <param name="buffNameToFind">The internal name of the buff to find.</param>
         /// <returns>True if the buff is found, otherwise false.</returns>
+        /// 
+        private IEnumerator HandleVaalClarityCasting(Skill skill)
+        {
+            // Set the busy flag so we don't start this again until it's finished.
+            _isCastingVaalClaritySequence = true;
+            LogMessage("Starting Vaal Clarity casting sequence...", 3);
+
+            if (Settings.CryBot)
+            {
+                // Re-check the buff. This check is now meaningful because the game state has had time to update.
+                LogMessage("Crybot is casting Vaal Clarity.", 3);
+                Keyboard.KeyPress(skill.Key);
+            }
+
+            // --- CULLER'S TURN ---
+            if (Settings.Culler)
+            {
+                // Wait for its specific delay
+                yield return new WaitTime(175);
+
+                // Re-check the buff. This check is now meaningful because the game state has had time to update.
+                if (!HasBuff(GameController.Player.GetComponent<Buffs>()?.BuffsList, skill.InternalName))
+                {
+                    LogMessage("Culler is casting Vaal Clarity.", 3);
+                    Keyboard.KeyPress(skill.Key);
+                }
+            }
+
+            // --- DRUGGIST'S TURN ---
+            else if (Settings.Druggery)
+            {
+                yield return new WaitTime(350);
+                if (!HasBuff(GameController.Player.GetComponent<Buffs>()?.BuffsList, skill.InternalName))
+                {
+                    LogMessage("Druggist is casting Vaal Clarity.", 3);
+                    Keyboard.KeyPress(skill.Key);
+                }
+            }
+                
+                
+                // --- Sequence is complete. Release the lock. ---
+                _isCastingVaalClaritySequence = false;
+            }
+        /// 
         private bool HasBuff(List<Buff> activeBuffs, string buffNameToFind)
         {
             // It's good practice to check if the list is valid before searching.
