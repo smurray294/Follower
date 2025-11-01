@@ -88,14 +88,14 @@ namespace Follower
             if (Settings.CryBot)
             {
 
-                _skills.Add(new Skill {
-                    Name = "Vaal Clarity",
-                    Key = Keys.D6,
-                    UseMode = SkillUseMode.AsSoonAsPossible,
-                    InternalName = "vaal_clarity",
-                    InternalBuffName = "vaal_aura_no_mana_cost", // The buff name for Vaal Clarity
-                    IsRitualOnly = true // This skill is special
-                });
+                // _skills.Add(new Skill {
+                //     Name = "Vaal Clarity",
+                //     Key = Keys.D6,
+                //     UseMode = SkillUseMode.AsSoonAsPossible,
+                //     InternalName = "vaal_clarity",
+                //     InternalBuffName = "vaal_aura_no_mana_cost", // The buff name for Vaal Clarity
+                //     IsRitualOnly = true // This skill is special
+                // });
     
                 _skills.Add(new Skill
                 {
@@ -146,14 +146,14 @@ namespace Follower
                     UseMode = SkillUseMode.OnCooldownInRange
                 });
 
-                _skills.Add(new Skill
-                {
-                    Name = "Mine",
-                    Key = Keys.D7,
-                    Cooldown = 0.4f,
-                    UseMode = SkillUseMode.OffensiveTargetedAttack,
-                    // We don't need to set HPPThreshold or ESPThreshold for this mode
-                });
+                // _skills.Add(new Skill
+                // {
+                //     Name = "Mine",
+                //     Key = Keys.D7,
+                //     Cooldown = 0.4f,
+                //     UseMode = SkillUseMode.OffensiveTargetedAttack,
+                //     // We don't need to set HPPThreshold or ESPThreshold for this mode
+                // });
 
             }
 
