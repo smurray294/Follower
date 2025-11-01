@@ -708,7 +708,6 @@ namespace Follower
                     if (leaderPos != null)
                         _lastTargetPosition = leaderPos;
                 }
-                    GameController.Player.Pos
 
                 // --- Task Execution ---
                 if (_tasks.Any())
