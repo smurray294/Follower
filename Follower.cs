@@ -279,10 +279,14 @@ namespace Follower
             if (Settings.AutoLevelGems.Value && !_isLevelingGem)
             {
                 if (_isHandlingUltimatum) return null;
-                var gemsToLvlUpElements = GetLevelableGems();
-                if (gemsToLvlUpElements.Any())
+
+                // Call our new, smarter function
+                var clickableElements = GetClickableLevelUpElements();
+
+                if (clickableElements.Any())
                 {
-                    var elementToClick = gemsToLvlUpElements.FirstOrDefault()?.GetChildAtIndex(1);
+                    // Our new function returns the EXACT button to click, so we just take the first one.
+                    var elementToClick = clickableElements.FirstOrDefault();
                     if (elementToClick != null)
                     {
                         var gemLevelCoroutine = new Coroutine(LevelUpGem(elementToClick), this, "LevelUpGemAction");
@@ -704,7 +708,7 @@ namespace Follower
                     if (leaderPos != null)
                         _lastTargetPosition = leaderPos;
                 }
-
+                    GameController.Player.Pos
 
                 // --- Task Execution ---
                 if (_tasks.Any())
@@ -1241,25 +1245,71 @@ namespace Follower
             _isLevelingGem = false;
         }
 
-        private List<Element> GetLevelableGems()
+        private List<Element> GetClickableLevelUpElements()
         {
-            var gemsToLevelUp = new List<Element>();
+            var clickableElements = new List<Element>();
 
-            var possibleGemsToLvlUpElements = GameController.IngameState.IngameUi?.GemLvlUpPanel?.GemsToLvlUp;
+            // 1. Get the LIST of elements from the GemsToLvlUp property.
+            var levelUpList = GameController.IngameState.IngameUi?.GemLvlUpPanel?.GemsToLvlUp;
 
-            if (possibleGemsToLvlUpElements != null && possibleGemsToLvlUpElements.Any())
+            // Safety Check: Ensure the list exists and has the 2 entries you discovered.
+            if (levelUpList == null || levelUpList.Count < 2)
             {
-                foreach (var possibleGemsToLvlUpElement in possibleGemsToLvlUpElements)
+                return clickableElements;
+            }
+
+            // --- PRIORITY 1: Check for the "Level All" Button ---
+            // This is the first element in the list (index 0).
+            var levelAllGroup = levelUpList[0];
+            if (levelAllGroup != null && levelAllGroup.IsVisible)
+            {
+                // YOUR FINDING: The actual clickable button is the FIRST CHILD of this group.
+                if (levelAllGroup.ChildCount > 0)
                 {
-                    foreach (var elem in possibleGemsToLvlUpElement.Children)
+                    var clickableLevelAllButton = levelAllGroup.GetChildAtIndex(0);
+                    if (clickableLevelAllButton != null)
                     {
-                        if (elem.Text != null && elem.Text.Contains("Click to level"))
-                            gemsToLevelUp.Add(possibleGemsToLvlUpElement);
+                        clickableElements.Add(clickableLevelAllButton);
+                        return clickableElements; // Return immediately with the correct click target.
                     }
                 }
             }
 
-            return gemsToLevelUp;
+            // --- PRIORITY 2: Check for Individual Gems ---
+            // This is the second element in the list (index 1).
+            var individualGemsRoot = levelUpList[1];
+            if (individualGemsRoot == null || individualGemsRoot.ChildCount == 0)
+            {
+                return clickableElements; // No container to check, exit.
+            }
+
+            // YOUR FINDING: The actual list of gems is one level deeper.
+            var individualGemsContainer = individualGemsRoot.GetChildAtIndex(0);
+            if (individualGemsContainer == null)
+            {
+                return clickableElements; // The nested container doesn't exist.
+            }
+
+            // Now, we iterate through the children of THIS nested container.
+            foreach (var gemEntry in individualGemsContainer.Children)
+            {
+                // A valid gem entry has 4 children.
+                if (gemEntry.ChildCount != 4) continue;
+
+                // The "tell" is the text in its 4th child (index 3).
+                var textElement = gemEntry.GetChildAtIndex(3);
+                if (textElement?.Text != null && textElement.Text.Contains("Click to level up"))
+                {
+                    // The click target is the 2nd child (index 1).
+                    var clickButton = gemEntry.GetChildAtIndex(1);
+                    if (clickButton != null)
+                    {
+                        clickableElements.Add(clickButton);
+                    }
+                }
+            }
+
+            return clickableElements;
         }
 
         private IEnumerator HandleTakeNearestTransition()
