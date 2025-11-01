@@ -9,19 +9,21 @@
     <DebugType>embedded</DebugType>
     <PathMap>$(MSBuildProjectDirectory)=$(MSBuildProjectName)</PathMap>
     <EmbedAllSources>true</EmbedAllSources>
+    <NoWarn>$(NoWarn);CS0618;CS0612</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- This uses a relative path, which is portable. -->
     <Reference Include="ExileCore">
-      <HintPath>C:\Users\smurr\OneDrive\Desktop\limited\ExileApi-Compiled-327.1\ExileCore.dll</HintPath>
+      <HintPath>..\..\..\ExileCore.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="GameOffsets">
-      <HintPath>C:\Users\smurr\OneDrive\Desktop\limited\ExileApi-Compiled-327.1\GameOffsets.dll</HintPath>
+      <HintPath>..\..\..\GameOffsets.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="SharpDX">
-      <HintPath>C:\Users\smurr\OneDrive\Desktop\limited\ExileApi-Compiled-327.1\SharpDX.dll</HintPath>
+      <HintPath>..\..\..\SharpDX.dll</HintPath>
       <Private>False</Private>
     </Reference>
   </ItemGroup>
