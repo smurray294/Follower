@@ -1773,6 +1773,16 @@ namespace Follower
             Graphics.DrawText($"Leader '{Settings.LeaderName.Value}': {leaderStatus}", new Vector2(500, 140), SharpDX.Color.LawnGreen);
             Graphics.DrawText($"_tasks: {_tasks.Count}", new Vector2(500, 160), SharpDX.Color.White);
 
+            // --- NEW: Distance Debugging ---
+            float distanceFromLeader = 0;
+            if (_followTarget != null)
+            {
+                distanceFromLeader = Vector3.Distance(GameController.Player.Pos, _followTarget.Pos);
+            }
+
+            Graphics.DrawText($"Distance to Target: {distanceFromLeader:F0}", new Vector2(500, 180), SharpDX.Color.Yellow);
+            // --- END OF NEW DEBUGGING ---
+
             // --- START OF NEW DEBUG SECTION ---
 
             Graphics.DrawText("--- Condition Check for Zone Change ---", new Vector2(500, 200), SharpDX.Color.Yellow);
