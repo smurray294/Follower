@@ -26,6 +26,7 @@ namespace Follower
         private Camera Camera => GameController.Game.IngameState.Camera;
 
         private DateTime _nextCacheClearTime = DateTime.MinValue;
+        private DateTime _nextErrorCacheClearTime = DateTime.MinValue; // <-- ADD THIS LINE for the reactive fix
 
         // --- State Variables ---
         private Vector3 _lastTargetPosition;
@@ -1728,8 +1729,13 @@ namespace Follower
                 }
                 return null;
             }
-            catch
+            catch (Exception e)
             {
+
+                LogError($"CRITICAL: Corrupted data detected in GetBestPortalToFollow. Forcing cache refresh.", 10);
+                
+                // Programmatically "click" the clear cache button.
+                GameController.EntityListWrapper.RefreshState();
                 return null;
             }
         }
