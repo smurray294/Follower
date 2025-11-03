@@ -17,6 +17,7 @@ using ExileCore.PoEMemory.Elements;
 using ExileCore.PoEMemory.MemoryObjects;
 using ExileCore.Shared;
 using ExileCore.Shared.Enums;
+using Microsoft.VisualBasic.Logging;
 namespace Follower
 {
     public class Follower : BaseSettingsPlugin<FollowerSettings>
@@ -313,7 +314,7 @@ namespace Follower
                     LogMessage("Entity count is dangerously high! Forcing a cache clear to prevent issues.", 5, SharpDX.Color.Orange);
 
                     // This is the programmatic equivalent of clicking the "Clear Entity Cache" button.
-                    GameController.EntityListWrapper.RefreshState();
+                    GameController.Area.ForceRefreshArea(false);
 
                     LogMessage("RefreshState() called successfully. Cooldown started.", 5, SharpDX.Color.LawnGreen);
 
@@ -763,6 +764,10 @@ namespace Follower
 
                     if (distanceFromLeader >= Settings.ClearPathDistance)
                     {
+                        // Force refresh area to clear pathfinding issues
+                        LogMessage("Leader is far away, forcing area refresh to clear pathfinding issues.", 3, SharpDX.Color.Orange);
+                        GameController.Area.ForceRefreshArea(false);
+
                         playerDistanceMoved = Vector3.Distance(GameController.Player.Pos, _lastPlayerPosition);
                         if (distanceMoved > Settings.ClearPathDistance)
                         {
@@ -1747,7 +1752,7 @@ namespace Follower
                 LogError($"CRITICAL: Corrupted data detected in GetBestPortalToFollow. Forcing cache refresh.", 10);
                 
                 // Programmatically "click" the clear cache button.
-                GameController.EntityListWrapper.RefreshState();
+                GameController.Area.ForceRefreshArea(false);
                 return null;
             }
         }
