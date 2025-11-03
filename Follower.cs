@@ -697,6 +697,10 @@ namespace Follower
 
                 // --- Decision Making (Path Building) ---
                 // This logic is mostly fine, we just let it run without extra delays.
+
+            
+
+
                 _followTarget = GetFollowingTarget();
                 var leaderPartyElement = GetLeaderPartyElement();
                 // (Your existing logic for creating _tasks when leader is far/near goes here. It doesn't need yields.)
@@ -1668,6 +1672,12 @@ namespace Follower
                 {
                     LogMessage("Go To Hideout command received!", 3, SharpDX.Color.Aqua);
                     _goToHideoutRequested = true;
+                }
+
+                else if (commandToProcess == "REFRESH_STATE")
+                {
+                    LogMessage("REFRESH_STATE command received. Forcing cache refresh.", 5, SharpDX.Color.Magenta);
+                    GameController.Area.ForceRefreshArea(false);
                 }
             }
         }
