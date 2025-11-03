@@ -159,14 +159,22 @@ namespace Follower
 
             if (Settings.ManaGuardian)
             {
+                // _skills.Add(new Skill
+                // {
+                //     Name = "Mine",
+                //     Key = Keys.Q,
+                //     Cooldown = 0.8f,
+                //     UseMode = SkillUseMode.OffensiveTargetedAttack,
+                //     // We don't need to set HPPThreshold or ESPThreshold for this mode
+                // });
                 _skills.Add(new Skill
                 {
-                    Name = "Mine",
-                    Key = Keys.Q,
-                    Cooldown = 0.8f,
-                    UseMode = SkillUseMode.OffensiveTargetedAttack,
-                    // We don't need to set HPPThreshold or ESPThreshold for this mode
+                    Name = "Link", // Or whatever your link skill is called
+                    Key = Keys.W,           // IMPORTANT: Change this to the key your skill is on!
+                    Cooldown = 0.6f,        // IMPORTANT: Change this to the skill's cooldown!
+                    UseMode = SkillUseMode.TargetLeaderOnCooldown
                 });
+
             }
 
             if (Settings.Druggery)
@@ -412,6 +420,19 @@ namespace Follower
                                 }
                             }
                             break;
+
+                        case SkillUseMode.TargetLeaderOnCooldown:
+                            var leader = GetFollowingTarget(); // Our reliable function to find the leader
+                            
+                            // Check if leader is valid, alive, and within the skill's range
+                            if (leader != null && leader.IsAlive)
+                            {
+                                // If all checks pass, store the leader's position for aiming
+                                _skillTargetPosition = leader.Pos; 
+                                conditionsMet = true;
+                            }
+                            break;
+
                     }
 
                     if (conditionsMet)
@@ -419,7 +440,7 @@ namespace Follower
                         LogMessage($"Casting skill '{skill.Name}' (Rule: {skill.UseMode})", 3, SharpDX.Color.LawnGreen);
 
                         // --- AIMING LOGIC for our new offensive mode ---
-                        if (skill.UseMode == SkillUseMode.OffensiveTargetedAttack)
+                        if (skill.UseMode == SkillUseMode.OffensiveTargetedAttack || skill.UseMode == SkillUseMode.TargetLeaderOnCooldown)
                         {
                             var targetScreenPos = Camera.WorldToScreen(_skillTargetPosition);
 
@@ -2077,7 +2098,10 @@ namespace Follower
         OnCooldownInRange,  // Use whenever it's off cooldown, BUT only if close to the leader (for War Cries)
         OnMonstersInRange,   // Use when a certain number of monsters are nearby (for attacks or curses)
         OffensiveTargetedAttack, // <-- NEW
-        AsSoonAsPossible // <-- NEW: Use whenever the game's CanBeUsed flag is true
+        AsSoonAsPossible, // <-- NEW: Use whenever the game's CanBeUsed flag is true
+
+        TargetLeaderOnCooldown // <-- ADD THIS NEW LINE
+
 
     }
 
