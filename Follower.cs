@@ -1129,53 +1129,84 @@ namespace Follower
 
         private IEnumerator HandleGoToHideout()
         {
-            LogMessage("Go To Hideout command received. Looking for a portal...", 3, SharpDX.Color.LawnGreen);
+            LogMessage("Go To Hideout command received. Starting search...", 3, SharpDX.Color.LawnGreen);
 
             const int maxAttempts = 5;
+            Entity portalEntity = null; // We'll store the actual game object here
+
+            // --- STAGE 1: Patiently find the PORTAL ENTITY ---
+            LogMessage("Stage 1: Searching for portal entity in the area...", 3);
             for (int attempt = 1; attempt <= maxAttempts; attempt++)
             {
-                // On every attempt, re-scan for the closest portal.
                 var playerPos = GameController.Player.Pos;
-                var portal = GameController.IngameState.IngameUi.ItemsOnGroundLabelsVisible
-                    .Where(label => {
-                        if (label.ItemOnGround?.Metadata == null) return false;
-                        string metadata = label.ItemOnGround.Metadata.ToLower();
-                        return metadata.Contains("portal") || metadata.Contains("multiplexportal");
+                portalEntity = GameController.EntityListWrapper.Entities
+                    .Where(e => {
+                        if (e.Metadata == null) return false;
+                        string metadata = e.Metadata.ToLower();
+                        return e.IsTargetable && (metadata.Contains("portal") || metadata.Contains("multiplexportal"));
                     })
-                    .OrderBy(label => Vector3.Distance(playerPos, label.ItemOnGround.Pos)) // Use manual distance for reliability
+                    .OrderBy(e => Vector3.Distance(playerPos, e.Pos))
                     .FirstOrDefault();
 
-                if (portal == null)
+                if (portalEntity != null)
                 {
-                    LogError($"Attempt #{attempt}: No portals found. Retrying in 1s...", 5);
-                    yield return new WaitTime(500);
-                    continue; // Go to the next iteration of the for loop
+                    LogMessage($"Found portal entity '{portalEntity.Metadata}' after {attempt} attempt(s).", 3, SharpDX.Color.LawnGreen);
+                    break; // Found it, exit the loop
                 }
 
-                // We found a portal, let's click it.
-                LogMessage($"Attempt #{attempt}: Found portal. Clicking...", 3);
-                yield return Mouse.SetCursorPosHuman(portal.Label.GetClientRect().Center, false);
-                yield return new WaitTime(50);
-                yield return Mouse.MultiLeftClick();
-
-                // Wait a significant time for the loading screen.
-                yield return new WaitTime(1000);
-
-                // --- VERIFY SUCCESS ---
-                // The ultimate proof of success is that we are now in a hideout.
-                if (GameController.Area.CurrentArea.IsHideout)
-                {
-                    LogMessage("Successfully transitioned to hideout!", 5, SharpDX.Color.LawnGreen);
-                    yield break; // SUCCESS! Exit the entire coroutine.
-                }
-                else
-                {
-                    LogMessage($"Attempt #{attempt} failed. Still in map. Retrying...", 3, SharpDX.Color.Orange);
-                }
+                LogMessage($"Attempt #{attempt}: Could not find portal entity. Retrying...", 3, SharpDX.Color.Yellow);
+                yield return new WaitTime(500); // Wait a bit before retrying
             }
 
-            LogError($"Failed to go to hideout after {maxAttempts} attempts.", 5);
+            if (portalEntity == null)
+            {
+                LogError($"Failed to find any portal entity after {maxAttempts} attempts.", 5);
+                yield break; // Give up
+            }
+
+            // --- STAGE 2: Patiently find the UI LABEL for our entity ---
+            LogMessage("Stage 2: Found entity, now waiting for its UI label to become visible...", 3);
+            LabelOnGround portalLabel = null;
+            for (int attempt = 1; attempt <= maxAttempts; attempt++)
+            {
+                // Now we search the VISIBLE labels for one that matches our entity's ID
+                portalLabel = GameController.IngameState.IngameUi.ItemsOnGroundLabelsVisible
+                    .FirstOrDefault(label => label.ItemOnGround?.Id == portalEntity.Id);
+
+                if (portalLabel != null)
+                {
+                    LogMessage($"Found visible UI label after {attempt} attempt(s). Proceeding to click.", 3, SharpDX.Color.LawnGreen);
+                    break; // Found it, exit the loop
+                }
+
+                LogMessage($"Attempt #{attempt}: Portal label is not visible yet. Waiting...", 3, SharpDX.Color.Yellow);
+                yield return new WaitTime(1000); // Use a LONGER wait here, as this is the part that fails
+            }
+
+            if (portalLabel == null)
+            {
+                LogError($"Found portal entity, but its UI label never appeared on screen after {maxAttempts} attempts. (Likely due to loot clutter).", 5);
+                yield break; // Give up
+            }
+
+            // --- STAGE 3: Click the label ---
+            LogMessage("Clicking portal...", 3);
+            yield return Mouse.SetCursorPosHuman(portalLabel.Label.GetClientRect().Center, false);
+            yield return new WaitTime(50);
+            yield return Mouse.MultiLeftClick();
+            yield return new WaitTime(1000); // Wait for transition
+
+            // (The rest of your verification logic remains the same)
+            if (GameController.Area.CurrentArea.IsHideout)
+            {
+                LogMessage("Successfully transitioned to hideout!", 5, SharpDX.Color.LawnGreen);
+            }
+            else
+            {
+                LogMessage("Transition to hideout failed after click.", 3, SharpDX.Color.Orange);
+            }
         }
+
 
         private bool IsUltimatumWindowOpen()
         {
