@@ -1127,15 +1127,34 @@ namespace Follower
             return false;
         }
 
+        private IEnumerator ClickEntity(Entity entity)
+        {
+            if (entity == null || !entity.IsTargetable)
+            {
+                LogError("ClickEntity failed: Provided entity was null or not targetable.", 5);
+                yield break;
+            }
+
+            LogMessage($"Direct clicking on entity: {entity.Metadata}", 3);
+
+            // Convert the entity's 3D world position to 2D screen coordinates
+            var screenPosition = Camera.WorldToScreen(entity.Pos);
+
+            // Move the mouse and click
+            yield return Mouse.SetCursorPosHuman(screenPosition, false);
+            yield return new WaitTime(50);
+            yield return Mouse.LeftClick();
+            yield return new WaitTime(500); // Wait for the action to register
+        }
+
         private IEnumerator HandleGoToHideout()
         {
-            LogMessage("Go To Hideout command received. Starting search...", 3, SharpDX.Color.LawnGreen);
+            LogMessage("Go To Hideout command received. Searching for portal entity...", 3, SharpDX.Color.LawnGreen);
 
             const int maxAttempts = 5;
-            Entity portalEntity = null; // We'll store the actual game object here
+            Entity portalEntity = null;
 
-            // --- STAGE 1: Patiently find the PORTAL ENTITY ---
-            LogMessage("Stage 1: Searching for portal entity in the area...", 3);
+            // We still patiently search for the ENTITY, as this is reliable.
             for (int attempt = 1; attempt <= maxAttempts; attempt++)
             {
                 var playerPos = GameController.Player.Pos;
@@ -1151,52 +1170,24 @@ namespace Follower
                 if (portalEntity != null)
                 {
                     LogMessage($"Found portal entity '{portalEntity.Metadata}' after {attempt} attempt(s).", 3, SharpDX.Color.LawnGreen);
-                    break; // Found it, exit the loop
+                    break; 
                 }
 
                 LogMessage($"Attempt #{attempt}: Could not find portal entity. Retrying...", 3, SharpDX.Color.Yellow);
-                yield return new WaitTime(500); // Wait a bit before retrying
+                yield return new WaitTime(500);
             }
 
             if (portalEntity == null)
             {
                 LogError($"Failed to find any portal entity after {maxAttempts} attempts.", 5);
-                yield break; // Give up
+                yield break;
             }
 
-            // --- STAGE 2: Patiently find the UI LABEL for our entity ---
-            LogMessage("Stage 2: Found entity, now waiting for its UI label to become visible...", 3);
-            LabelOnGround portalLabel = null;
-            for (int attempt = 1; attempt <= maxAttempts; attempt++)
-            {
-                // Now we search the VISIBLE labels for one that matches our entity's ID
-                portalLabel = GameController.IngameState.IngameUi.ItemsOnGroundLabelsVisible
-                    .FirstOrDefault(label => label.ItemOnGround?.Id == portalEntity.Id);
+            // --- NEW, ROBUST CLICK LOGIC ---
+            // Instead of searching for a label, we just directly click the entity we found.
+            yield return ClickEntity(portalEntity);
 
-                if (portalLabel != null)
-                {
-                    LogMessage($"Found visible UI label after {attempt} attempt(s). Proceeding to click.", 3, SharpDX.Color.LawnGreen);
-                    break; // Found it, exit the loop
-                }
-
-                LogMessage($"Attempt #{attempt}: Portal label is not visible yet. Waiting...", 3, SharpDX.Color.Yellow);
-                yield return new WaitTime(1000); // Use a LONGER wait here, as this is the part that fails
-            }
-
-            if (portalLabel == null)
-            {
-                LogError($"Found portal entity, but its UI label never appeared on screen after {maxAttempts} attempts. (Likely due to loot clutter).", 5);
-                yield break; // Give up
-            }
-
-            // --- STAGE 3: Click the label ---
-            LogMessage("Clicking portal...", 3);
-            yield return Mouse.SetCursorPosHuman(portalLabel.Label.GetClientRect().Center, false);
-            yield return new WaitTime(50);
-            yield return Mouse.MultiLeftClick();
-            yield return new WaitTime(1000); // Wait for transition
-
-            // (The rest of your verification logic remains the same)
+            // Verification logic remains the same
             if (GameController.Area.CurrentArea.IsHideout)
             {
                 LogMessage("Successfully transitioned to hideout!", 5, SharpDX.Color.LawnGreen);
@@ -1206,6 +1197,7 @@ namespace Follower
                 LogMessage("Transition to hideout failed after click.", 3, SharpDX.Color.Orange);
             }
         }
+
 
 
         private bool IsUltimatumWindowOpen()
