@@ -315,6 +315,8 @@ namespace Follower
                     // This is the programmatic equivalent of clicking the "Clear Entity Cache" button.
                     GameController.EntityListWrapper.RefreshState();
 
+                    LogMessage("RefreshState() called successfully. Cooldown started.", 5, SharpDX.Color.LawnGreen);
+
                     // Set a 30-second cooldown before we are allowed to do this again.
                     _nextCacheClearTime = DateTime.Now.AddSeconds(5);
                 }
