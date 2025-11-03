@@ -1137,7 +1137,11 @@ namespace Follower
                 // On every attempt, re-scan for the closest portal.
                 var playerPos = GameController.Player.Pos;
                 var portal = GameController.IngameState.IngameUi.ItemsOnGroundLabelsVisible
-                    .Where(label => label.ItemOnGround.Metadata.ToLower().Contains("portal"))
+                    .Where(label => {
+                        if (label.ItemOnGround?.Metadata == null) return false;
+                        string metadata = label.ItemOnGround.Metadata.ToLower();
+                        return metadata.Contains("portal") || metadata.Contains("multiplexportal");
+                    })
                     .OrderBy(label => Vector3.Distance(playerPos, label.ItemOnGround.Pos)) // Use manual distance for reliability
                     .FirstOrDefault();
 
