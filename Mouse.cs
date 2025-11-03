@@ -5,6 +5,8 @@ using System.Runtime.InteropServices;
 using System.Windows.Forms;
 using ExileCore.Shared;
 using SharpDX;
+using ExileCore; // <-- ADD THIS LINE
+
 
 namespace Follower
 {
@@ -84,14 +86,17 @@ namespace Follower
 
         public static IEnumerator MultiLeftClick(int clickCount = 3, int delayBetweenClicks = 30)
         {
+            
+            Input.KeyDown(Keys.LShiftKey);
             for (int i = 0; i < clickCount; i++)
             {
                 // Use the existing reliable LeftClick coroutine
                 yield return LeftClick();
-                
+
                 // A very small pause between the clicks
                 yield return new WaitTime(delayBetweenClicks);
             }
+            Input.KeyUp(Keys.LShiftKey);
         }
 
         /// <summary>

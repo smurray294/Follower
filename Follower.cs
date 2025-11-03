@@ -1146,6 +1146,20 @@ namespace Follower
 
             return false;
         }
+        private IEnumerator ShiftLeftClick()
+        {
+            // Press and hold the "Attack in Place" key
+            Input.KeyDown(Keys.LShiftKey);
+            yield return new WaitTime(30); // A small delay to ensure the game registers the key press
+
+            // Perform the click
+            yield return Mouse.LeftClick();
+            yield return new WaitTime(30);
+
+            // Release the "Attack in Place" key
+            Input.KeyUp(Keys.LShiftKey);
+        }
+
 
         private IEnumerator ClickEntity(Entity entity)
         {
