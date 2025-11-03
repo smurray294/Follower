@@ -31,6 +31,9 @@ public class FollowerSettings : ISettings
     [Menu("Ultimatum: Leader Timeout", "Max seconds to wait for the leader's choice before picking the first option.", 300)]
     public RangeNode<int> UltimatumTimeout { get; set; } = new RangeNode<int>(20, 10, 30);
 
+    [Menu("Vaal Discipline Priority", "Unique number for each follower (1, 2, 3, etc.) to determine cast order. 0 disables this feature for this bot.")]
+    public RangeNode<int> VaalDisciplinePriority { get; set; } = new RangeNode<int>(0, 0, 5);
+
     // Place this with your other skill-related settings
     [Menu("Warcry Cooldown", "Cooldown in seconds for all Warcry skills.")]
     public RangeNode<float> WarcryCooldown { get; set; } = new RangeNode<float>(3.8f, 0.1f, 10.0f);

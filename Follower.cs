@@ -38,6 +38,8 @@ namespace Follower
 
         private bool _isHandlingUltimatum = false;
 
+        private bool _isCastingVaalDisciplineSequence = false;
+
 
         internal DateTime lastTimeAny;
 
@@ -96,6 +98,16 @@ namespace Follower
                 //     InternalBuffName = "vaal_aura_no_mana_cost", // The buff name for Vaal Clarity
                 //     IsRitualOnly = true // This skill is special
                 // });
+
+                _skills.Add(new Skill
+                {
+                    Name = "Vaal Discipline",
+                    Key = Keys.D7, // IMPORTANT: Set the correct key for this follower!
+                    UseMode = SkillUseMode.DefensiveSelfCast,
+                    InternalName = "vaal_discipline", 
+                    InternalBuffName = "vaal_aura_energy_shield", // Critical for our checks
+                    ESThreshold = 0.90f // Trigger if this follower's ES drops below 90%
+                });
     
                 _skills.Add(new Skill
                 {
@@ -167,6 +179,17 @@ namespace Follower
                 //     UseMode = SkillUseMode.OffensiveTargetedAttack,
                 //     // We don't need to set HPPThreshold or ESPThreshold for this mode
                 // });
+
+                _skills.Add(new Skill
+                {
+                    Name = "Vaal Discipline",
+                    Key = Keys.R, // IMPORTANT: Set the correct key for this follower!
+                    UseMode = SkillUseMode.DefensiveSelfCast,
+                    InternalName = "vaal_discipline", 
+                    InternalBuffName = "vaal_discipline_aura", // Critical for our checks
+                    ESThreshold = 0.90f // Trigger if this follower's ES drops below 90%
+                });
+
                 _skills.Add(new Skill
                 {
                     Name = "Link", // Or whatever your link skill is called
@@ -179,27 +202,49 @@ namespace Follower
 
             if (Settings.Druggery)
             {
-                _skills.Add(new Skill {
-                    Name = "Vaal Clarity",
-                    Key = Keys.D6,
-                    UseMode = SkillUseMode.AsSoonAsPossible,
-                    InternalName = "vaal_clarity",
-                    InternalBuffName = "vaal_aura_no_mana_cost", // The buff name for Vaal Clarity
-                    IsRitualOnly = true // This skill is special
-                });
 
                 _skills.Add(new Skill
                 {
-                    Name = "Mine",
-                    Key = Keys.Q,
-                    Cooldown = 0.4f,
-                    UseMode = SkillUseMode.OffensiveTargetedAttack,
-                    // We don't need to set HPPThreshold or ESPThreshold for this mode
+                    Name = "Vaal Discipline",
+                    Key = Keys.D, // IMPORTANT: Set the correct key for this follower!
+                    UseMode = SkillUseMode.DefensiveSelfCast,
+                    InternalName = "vaal_discipline", 
+                    InternalBuffName = "vaal_discipline_aura", // Critical for our checks
+                    ESThreshold = 0.90f // Trigger if this follower's ES drops below 90%
                 });
+
+                // _skills.Add(new Skill {
+                //     Name = "Vaal Clarity",
+                //     Key = Keys.D6,
+                //     UseMode = SkillUseMode.AsSoonAsPossible,
+                //     InternalName = "vaal_clarity",
+                //     InternalBuffName = "vaal_aura_no_mana_cost", // The buff name for Vaal Clarity
+                //     IsRitualOnly = true // This skill is special
+                // });
+
+                // _skills.Add(new Skill
+                // {
+                //     Name = "Mine",
+                //     Key = Keys.Q,
+                //     Cooldown = 0.4f,
+                //     UseMode = SkillUseMode.OffensiveTargetedAttack,
+                //     // We don't need to set HPPThreshold or ESPThreshold for this mode
+                // });
             }
 
             if (Settings.Aurabot)
             {
+
+                _skills.Add(new Skill
+                {
+                    Name = "Vaal Discipline",
+                    Key = Keys.Z, // IMPORTANT: Set the correct key for this follower!
+                    UseMode = SkillUseMode.DefensiveSelfCast,
+                    InternalName = "vaal_discipline", 
+                    InternalBuffName = "vaal_discipline_aura", // Critical for our checks
+                    ESThreshold = 0.90f // Trigger if this follower's ES drops below 90%
+                });
+
                 _skills.Add(new Skill
                 {
                     Name = "Mine",
@@ -399,7 +444,7 @@ namespace Follower
 
                         case SkillUseMode.AsSoonAsPossible:
                             var actorSkill = actorSkills.FirstOrDefault(s => s.InternalName == skill.InternalName);
-                            
+
                             // Initial check: Is the skill usable right now?
                             if (actorSkill != null && actorSkill.CanBeUsed)
                             {
@@ -423,15 +468,46 @@ namespace Follower
 
                         case SkillUseMode.TargetLeaderOnCooldown:
                             var leader = GetFollowingTarget(); // Our reliable function to find the leader
-                            
+
                             // Check if leader is valid, alive, and within the skill's range
                             if (leader != null && leader.IsAlive)
                             {
                                 // If all checks pass, store the leader's position for aiming
-                                _skillTargetPosition = leader.Pos; 
+                                _skillTargetPosition = leader.Pos;
                                 conditionsMet = true;
                             }
                             break;
+
+                        case SkillUseMode.DefensiveSelfCast:
+                            // 1. Is this follower's priority disabled in the settings?
+                            if (Settings.VaalDisciplinePriority.Value <= 0) break;
+
+                            // 2. Are we already busy casting?
+                            if (_isCastingVaalDisciplineSequence) break;
+
+                            // 3. Do we have enough souls for the Vaal skill?
+                            var vaalSkill = actor.ActorSkills.FirstOrDefault(s => s.InternalName == skill.InternalName);
+                            if (vaalSkill == null || !vaalSkill.CanBeUsed) break;
+
+                            // 4. Is OUR OWN ES below the threshold?
+                            var selfLife = GameController.Player.GetComponent<Life>();
+                            if (selfLife == null) break;
+
+                            float selfEsPercent = (selfLife.MaxES > 0) ? (float)selfLife.CurES / selfLife.MaxES : 1.0f;
+
+                            if (selfEsPercent < skill.ESThreshold)
+                            {
+                                // 5. Do we already have the buff? (Prevents starting if another bot just cast)
+                                var selfBuffs = GameController.Player.GetComponent<Buffs>();
+                                if (selfBuffs != null && HasBuff(selfBuffs.BuffsList, skill.InternalBuffName)) break;
+                                
+                                // All checks passed. Start the casting coroutine.
+                                var vaalDiscCoroutine = new Coroutine(HandleVaalDisciplineCasting(skill), this, "VaalDisciplineSequence");
+                                Core.ParallelRunner.Run(vaalDiscCoroutine);
+                            }
+                            break;
+                        // ^^^ END OF NEW CASE BLOCK ^^^
+
 
                     }
 
@@ -759,7 +835,7 @@ namespace Follower
                                 LogMessage("Dashable terrain detected. Dashing instead of walking.", 3, SharpDX.Color.Aqua);
 
                                 // Aim at the final destination and perform the dash.
-                                Mouse.SetCursorPos(WorldToValidScreenPosition(currentTask.WorldPosition));                                
+                                Mouse.SetCursorPos(WorldToValidScreenPosition(currentTask.WorldPosition));
                                 Keyboard.KeyPress(Settings.DashKey.Value);
                                 //continue; // Immediately restart the main loop
                             }
@@ -789,9 +865,9 @@ namespace Follower
                                 //         // Aim at the final destination, not just over the obstacle.
                                 //         Mouse.SetCursorPos(WorldToValidScreenPosition(currentTask.WorldPosition));
                                 //         yield return new WaitTime(50); // Small pause for cursor to settle.
-                                        
+
                                 //         Keyboard.KeyPress(Settings.DashKey.Value);
-                                        
+
                                 //         // CRUCIAL: Reset the attempt count to prevent a dash loop.
                                 //         currentTask.AttemptCount = 0; 
 
@@ -884,6 +960,33 @@ namespace Follower
         /// <param name="buffNameToFind">The internal name of the buff to find.</param>
         /// <returns>True if the buff is found, otherwise false.</returns>
         /// 
+        /// 
+        /// 
+        /// 
+
+        private IEnumerator HandleVaalDisciplineCasting(Skill skill)
+        {
+            _isCastingVaalDisciplineSequence = true; 
+
+            int delay = Settings.VaalDisciplinePriority.Value * 100; 
+            yield return new WaitTime(delay);
+
+            // --- FINAL CHECK (using YOUR CORRECTED LOGIC) ---
+            var selfBuffs = GameController.Player.GetComponent<Buffs>();
+            if (selfBuffs != null && !HasBuff(selfBuffs.BuffsList, skill.InternalBuffName))
+            {
+                LogMessage($"My turn to cast {skill.Name}! (Priority: {Settings.VaalDisciplinePriority.Value})", 3, SharpDX.Color.Magenta);
+                Keyboard.KeyPress(skill.Key);
+            }
+            else
+            {
+                LogMessage($"Another follower cast {skill.Name} first. Aborting my cast. (Priority: {Settings.VaalDisciplinePriority.Value})", 3, SharpDX.Color.Yellow);
+            }
+
+            yield return new WaitTime(3000); 
+            _isCastingVaalDisciplineSequence = false;
+        }
+
         private IEnumerator HandleVaalClarityCasting(Skill skill)
         {
             // Set the busy flag so we don't start this again until it's finished.
@@ -921,11 +1024,11 @@ namespace Follower
                     Keyboard.KeyPress(skill.Key);
                 }
             }
-                
-                
-                // --- Sequence is complete. Release the lock. ---
-                _isCastingVaalClaritySequence = false;
-            }
+
+
+            // --- Sequence is complete. Release the lock. ---
+            _isCastingVaalClaritySequence = false;
+        }
         /// 
         private bool HasBuff(List<Buff> activeBuffs, string buffNameToFind)
         {
@@ -2100,7 +2203,10 @@ namespace Follower
         OffensiveTargetedAttack, // <-- NEW
         AsSoonAsPossible, // <-- NEW: Use whenever the game's CanBeUsed flag is true
 
-        TargetLeaderOnCooldown // <-- ADD THIS NEW LINE
+        TargetLeaderOnCooldown, // <-- ADD THIS NEW LINE
+
+        DefensiveSelfCast // <-- ADD THIS NEW LINE
+
 
 
     }
@@ -2117,6 +2223,9 @@ namespace Follower
         public SkillUseMode UseMode { get; set; }
         public string InternalName { get; set; } // The internal name from DevTree
         public string InternalBuffName { get; set; } // The internal name for the buff, if applicable
+
+        public float ESThreshold { get; set; } = 0.90f; // <-- ADD THIS LINE
+
 
         public bool IsRitualOnly { get; set; } = false; // Default to false
     }
