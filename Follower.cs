@@ -25,6 +25,8 @@ namespace Follower
         private readonly Random random = new Random();
         private Camera Camera => GameController.Game.IngameState.Camera;
 
+        private DateTime _nextCacheClearTime = DateTime.MinValue;
+
         // --- State Variables ---
         private Vector3 _lastTargetPosition;
         private Vector3 _lastPlayerPosition;
@@ -298,6 +300,24 @@ namespace Follower
         public override Job Tick()
         {
             // The Tick method is now only responsible for starting/stopping the coroutine and processing commands.
+
+            // --- NEW: Automatic Entity Cache Clearing ---
+            // Check if the entity count is getting dangerously close to the limit.
+            // We use 9500 as a safe threshold below the 10000 max.
+            if (GameController.EntityListWrapper.Entities.Count > 9500)
+            {
+                // Check if our cooldown has expired to prevent spamming this.
+                if (DateTime.Now > _nextCacheClearTime)
+                {
+                    LogMessage("Entity count is dangerously high! Forcing a cache clear to prevent issues.", 5, SharpDX.Color.Orange);
+
+                    // This is the programmatic equivalent of clicking the "Clear Entity Cache" button.
+                    GameController.EntityListWrapper.RefreshState();
+
+                    // Set a 30-second cooldown before we are allowed to do this again.
+                    _nextCacheClearTime = DateTime.Now.AddSeconds(5);
+                }
+            }
 
             ProcessCommands(); // Check for and process remote commands
 
